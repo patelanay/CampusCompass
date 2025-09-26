@@ -1,0 +1,46 @@
+<mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36" version="26.2.4">
+  <diagram name="Page-1" id="MEF9OgkUmLpgu9FCqJX6">
+    <mxGraphModel dx="2360" dy="740" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="gXwCXz6l0O-Bo8Cwjw51-1" value="&lt;h4&gt;&lt;b&gt;Frontend:&amp;nbsp;&lt;/b&gt;&lt;/h4&gt;&lt;div&gt;JS/React/HTML/CSS&lt;/div&gt;&lt;div&gt;-Google OAuth Login UI&lt;/div&gt;&lt;div&gt;-Calendar Views&lt;/div&gt;&lt;div&gt;-Task side bar and to do list&lt;/div&gt;&lt;div&gt;-Notification and settings&lt;/div&gt;&lt;div&gt;-Syllabus upload&lt;/div&gt;&lt;div&gt;-UF Campus Map (Link)&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="-643" y="111" width="298" height="166" as="geometry" />
+        </mxCell>
+        <mxCell id="gXwCXz6l0O-Bo8Cwjw51-6" style="edgeStyle=none;curved=1;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;fontSize=12;startSize=8;endSize=8;" edge="1" parent="1" source="gXwCXz6l0O-Bo8Cwjw51-4" target="gXwCXz6l0O-Bo8Cwjw51-1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="gXwCXz6l0O-Bo8Cwjw51-4" value="Users/Browser&lt;div&gt;(Student / Guest account)&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="-896" y="153" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="gXwCXz6l0O-Bo8Cwjw51-10" style="edgeStyle=none;curved=1;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;fontSize=12;startSize=8;endSize=8;" edge="1" parent="1" source="gXwCXz6l0O-Bo8Cwjw51-7" target="gXwCXz6l0O-Bo8Cwjw51-9">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="gXwCXz6l0O-Bo8Cwjw51-16" style="edgeStyle=none;curved=1;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.25;exitDx=0;exitDy=0;entryX=0;entryY=0.25;entryDx=0;entryDy=0;fontSize=12;startSize=8;endSize=8;" edge="1" parent="1" source="gXwCXz6l0O-Bo8Cwjw51-7" target="gXwCXz6l0O-Bo8Cwjw51-12">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="gXwCXz6l0O-Bo8Cwjw51-17" style="edgeStyle=none;curved=1;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;fontSize=12;startSize=8;endSize=8;" edge="1" parent="1" source="gXwCXz6l0O-Bo8Cwjw51-7" target="gXwCXz6l0O-Bo8Cwjw51-12">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="gXwCXz6l0O-Bo8Cwjw51-18" style="edgeStyle=none;curved=1;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.75;exitDx=0;exitDy=0;entryX=0;entryY=0.75;entryDx=0;entryDy=0;fontSize=12;startSize=8;endSize=8;" edge="1" parent="1" source="gXwCXz6l0O-Bo8Cwjw51-7" target="gXwCXz6l0O-Bo8Cwjw51-12">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="gXwCXz6l0O-Bo8Cwjw51-7" value="&lt;br&gt;&lt;h4 style=&quot;forced-color-adjust: none; box-shadow: none !important;&quot;&gt;&lt;b style=&quot;forced-color-adjust: none; box-shadow: none !important;&quot;&gt;Backend:&amp;nbsp;&lt;/b&gt;&lt;/h4&gt;&lt;div style=&quot;forced-color-adjust: none; box-shadow: none !important;&quot;&gt;Python/Flask/etc&lt;/div&gt;&lt;div style=&quot;forced-color-adjust: none; box-shadow: none !important;&quot;&gt;-Auth service (Google tokens)&lt;/div&gt;&lt;div style=&quot;forced-color-adjust: none; box-shadow: none !important;&quot;&gt;-User service: account type, profile management, permissions&lt;/div&gt;&lt;div style=&quot;forced-color-adjust: none; box-shadow: none !important;&quot;&gt;- Events: Create, read, update, delete operations&lt;/div&gt;&lt;div style=&quot;forced-color-adjust: none; box-shadow: none !important;&quot;&gt;-Canvas API: fetches and syncs from Canvas&lt;/div&gt;&lt;div style=&quot;forced-color-adjust: none; box-shadow: none !important;&quot;&gt;- AI Parse: Extracts key deadlines and information from uploaded syllabuses and automatically generates events&lt;/div&gt;&lt;div style=&quot;forced-color-adjust: none; box-shadow: none !important;&quot;&gt;-Notifications: manages notifications including manually added and AI created events.&lt;/div&gt;&lt;div style=&quot;forced-color-adjust: none; box-shadow: none !important;&quot;&gt;&lt;br&gt;&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="-651.5" y="319" width="315" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="gXwCXz6l0O-Bo8Cwjw51-8" style="edgeStyle=none;curved=1;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=-0.037;entryDx=0;entryDy=0;entryPerimeter=0;fontSize=12;startSize=8;endSize=8;" edge="1" parent="1" source="gXwCXz6l0O-Bo8Cwjw51-1" target="gXwCXz6l0O-Bo8Cwjw51-7">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="gXwCXz6l0O-Bo8Cwjw51-9" value="&lt;h4&gt;&lt;b&gt;Database:&amp;nbsp;&lt;/b&gt;&lt;/h4&gt;&lt;div&gt;MongoDB&lt;/div&gt;&lt;div&gt;-Users: profiles, roles, preferences&lt;/div&gt;&lt;div&gt;-Events: manual and AI created&lt;/div&gt;&lt;div&gt;-Tasks: to do list, assignments, meetings&lt;/div&gt;&lt;div&gt;-Settings: notification settings.&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="-643" y="554" width="298" height="166" as="geometry" />
+        </mxCell>
+        <mxCell id="gXwCXz6l0O-Bo8Cwjw51-12" value="&lt;h4&gt;&lt;b&gt;External Systems&amp;nbsp;&lt;/b&gt;&lt;/h4&gt;&lt;div&gt;-Google OAuth 2.0&lt;/div&gt;&lt;div&gt;-Canvas API&lt;/div&gt;&lt;div&gt;-OpenAI/ Google NPI APIs&lt;/div&gt;&lt;div&gt;-UF Campus Map&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="-241" y="342" width="298" height="166" as="geometry" />
+        </mxCell>
+        <mxCell id="gXwCXz6l0O-Bo8Cwjw51-19" style="edgeStyle=none;curved=1;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=1;exitDx=0;exitDy=0;entryX=0.016;entryY=0.94;entryDx=0;entryDy=0;entryPerimeter=0;fontSize=12;startSize=8;endSize=8;" edge="1" parent="1" source="gXwCXz6l0O-Bo8Cwjw51-7" target="gXwCXz6l0O-Bo8Cwjw51-12">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
