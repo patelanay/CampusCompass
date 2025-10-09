@@ -1,1 +1,1 @@
-# swe-project
+Campus Compass
