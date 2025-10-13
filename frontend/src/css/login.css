@@ -93,6 +93,72 @@
   margin-bottom: 18px;
 }
 
+/* Auth form styling */
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 6px;
+}
+
+.label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.9rem;
+  color: #334155;
+}
+
+.label {
+  text-align: left; /* ensure label text is left-justified */
+  align-items: stretch; /* allow children (inputs) to stretch full width */
+}
+
+.input {
+  padding: 12px 12px;
+  border-radius: 8px;
+  border: 1px solid #e6e9ee;
+  outline: none;
+  font-size: 1rem;
+  color: #0f172a;
+  transition: box-shadow 120ms ease, border-color 120ms ease;
+  width: 100%;
+  box-sizing: border-box;
+}
+.input:focus {
+  box-shadow: 0 6px 18px rgba(11, 99, 183, 0.12);
+  border-color: #0b63b7;
+}
+
+.error {
+  color: #b91c1c;
+  background: #fff1f2;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+.primary.full {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: linear-gradient(90deg, #ff7a00, #ff9a3c);
+  color: white;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  transition: transform 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
+}
+.primary.full:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+.primary.full:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 30px rgba(255, 138, 70, 0.18);
+}
+
 /* OAuth button styled orange CTA */
 .oauth-wrap {
   margin-top: 12px;
