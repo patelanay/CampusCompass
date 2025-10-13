@@ -1,0 +1,247 @@
+/* Blue + Orange color scheme for split-panel login */
+
+/* Page wrapper */
+.split-wrapper {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: stretch;
+  justify-content: stretch;
+  padding: 0;
+  margin: 0;
+  background: linear-gradient(180deg, #0b63b7 0%, #075fa8 100%); /* deep blue */
+}
+
+.panel {
+  flex: 1;
+  min-height: 520px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Left decorative panel */
+.left-panel {
+  position: relative;
+  padding: 48px;
+  color: #fff;
+  display: flex;
+  align-items: center;
+}
+.left-content {
+  max-width: 420px;
+}
+.left-title {
+  font-size: 2rem;
+  letter-spacing: 2px;
+  margin: 0 0 8px 0;
+  color: #ffd1a9;
+  font-weight: 800;
+}
+.left-sub {
+  font-size: 1rem;
+  font-weight: 700;
+  margin-bottom: 12px;
+  color: #fff;
+}
+.left-copy {
+  color: rgba(255, 255, 255, 0.9);
+  line-height: 1.4;
+}
+
+/* Decorative orange circles */
+.decor-circle {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 140, 0, 0.12);
+  box-shadow: inset -10px -10px 30px rgba(0, 0, 0, 0.15);
+}
+.decor-1 {
+  width: 160px;
+  height: 160px;
+  right: -40px;
+  bottom: 40px;
+}
+.decor-2 {
+  width: 120px;
+  height: 120px;
+  left: -40px;
+  top: 60px;
+}
+
+/* Right sign-in card */
+.right-panel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.card {
+  background: #fff;
+  width: 460px;
+  padding: 36px;
+  border-radius: 18px;
+  box-shadow: 0 20px 60px rgba(2, 6, 23, 0.12);
+}
+.card-title {
+  font-size: 1.5rem;
+  color: #0f172a;
+  margin: 0 0 6px 0;
+}
+.card-sub {
+  color: #6b7280;
+  font-size: 0.95rem;
+  margin-bottom: 18px;
+}
+
+/* OAuth button styled orange CTA */
+.oauth-wrap {
+  margin-top: 12px;
+}
+.google-btn.full {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: none;
+  background: #ff7a00;
+  color: white;
+}
+.oauth-icon {
+  width: 20px;
+  height: 20px;
+}
+.google-text {
+  color: #fff;
+  font-weight: 700;
+}
+
+.alt-note {
+  margin-top: 18px;
+  color: #475569;
+  text-align: center;
+}
+.linkish {
+  background: none;
+  border: none;
+  color: #ff7a00;
+  font-weight: 600;
+}
+
+@media (max-width: 900px) {
+  .split-wrapper {
+    flex-direction: column;
+    padding: 20px;
+  }
+  .panel {
+    width: 100%;
+  }
+  .left-panel {
+    order: 2;
+  }
+  .right-panel {
+    order: 1;
+  }
+  .card {
+    width: 100%;
+    border-radius: 12px;
+  }
+}
+/* Additional styles for the Login component to complement Tailwind */
+/* Dark, Netflix-like login styling */
+.login-wrapper {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(
+      ellipse at center,
+      rgba(255, 255, 255, 0.02) 0%,
+      rgba(0, 0, 0, 0.75) 40%
+    ),
+    linear-gradient(180deg, #000000 0%, #0b0b0b 100%);
+}
+
+.login-card {
+  width: 100%;
+  max-width: 420px;
+  padding: 36px 36px;
+  border-radius: 8px;
+  background: rgba(18, 18, 18, 0.92);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.login-title {
+  .panel {
+    flex: 1 1 50%;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .card {
+    background: #fff;
+    width: 460px;
+    padding: 36px;
+    border-radius: 18px;
+    box-shadow: 0 20px 60px rgba(2, 6, 23, 0.12);
+    margin: 0 80px;
+  }
+  color: #cbd5e1;
+}
+
+.google-btn {
+  background: #ffffff;
+  height: auto;
+  border: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 6px;
+}
+
+.oauth-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.divider hr {
+  flex: 1;
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.input-dark {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  color: #e6eef8;
+  padding: 10px 12px;
+  outline: none;
+}
+.input-dark::placeholder {
+  color: rgba(230, 238, 248, 0.45);
+}
+
+.primary-btn {
+  background: #e50914;
+  color: white;
+  padding: 12px 14px;
+  border-radius: 6px;
+  border: none;
+  font-weight: 600;
+}
+.primary-cta {
+  box-shadow: 0 6px 18px rgba(233, 9, 20, 0.28);
+}
+
+.muted {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.95rem;
+}
