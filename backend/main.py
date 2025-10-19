@@ -1,4 +1,3 @@
-
 #loads mongo db atlas client and connects to the database
 from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
