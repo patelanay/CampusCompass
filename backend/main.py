@@ -4,11 +4,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List
 
-class Fruit(BaseModel):
+class Calendar(BaseModel):
     name: str
 
-class Fruits(BaseModel):
-    fruits: List[Fruit]
+class Calendars(BaseModel):
+    calendars: List[Calendar]
 
 app = FastAPI()
 
@@ -24,17 +24,20 @@ app.add_middleware(
     allow_headers = ["*"],
 )
 
-memory_db = {"fruits":[]}
+memory_db = {"calendars":[]}
 
-@app.get("/fruits", response_model=Fruits)
-def get_fruits():
-    # return the in-memory fruits list in the response model shape
-    return {"fruits": memory_db["fruits"]}
+@app.get("/calendars", response_model=Calendars)
+def get_calendars():
+    # return the in-memory calendars list in the response model shape
+    return {"calendars": memory_db["calendars"]}
 
-@app.post("/fruits", response_model=Fruit)
-def add_fruit(fruit: Fruit):
-    memory_db["fruits"].append(fruit)
-    return fruit
+@app.post("/calendars", response_model=Calendar)
+def add_calendar(calendar: Calendar):
+    memory_db["calendars"].append(calendar)
+    return calendar
 
 if __name__ == "__main__":
     uvicorn.run(app, host = "0.0.0.0", port = 8000)
+
+#http://localhost:8000/docs
+#http://localhost:8000/calendars
