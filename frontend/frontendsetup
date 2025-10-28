@@ -1,0 +1,15 @@
+# Campus Compass Frontend
+
+React + TypeScript + Vite project for the UF Campus Compass login and navigation app.
+
+
+- If `npm run dev` doesn't work, make sure to run `npm install` first. If that still doesn't work, ensure Node.js is installed.
+- The `css` folder contains files that define the styling of the frontend.
+
+- `Login.tsx` contains the login page component, which is where `connection` logic to the backend API should be implemented.
+
+- `App.tsx` is the root component that renders the login page.
+- `main.tsx` bootstraps the React app and applies global styles.
+
+- the .json files are just for react and vite setup, no need to change i believe
+- assets folder is if you want to add images to be used on the frontend
