@@ -1,26 +1,24 @@
-/* Blue + Orange color scheme for split-panel login */
+/* --- Blue + Orange Split-Panel Login --- */
 
-/* Page wrapper */
 .split-wrapper {
   width: 100vw;
   height: 100vh;
   display: flex;
+  flex-direction: row;
   align-items: stretch;
   justify-content: stretch;
-  padding: 0;
   margin: 0;
-  background: linear-gradient(180deg, #0b63b7 0%, #075fa8 100%); /* deep blue */
+  background: linear-gradient(180deg, #0b63b7 0%, #075fa8 100%);
 }
 
 .panel {
   flex: 1;
-  min-height: 520px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-/* Left decorative panel */
+/* --- Left info panel --- */
 .left-panel {
   position: relative;
   padding: 48px;
@@ -33,23 +31,21 @@
 }
 .left-title {
   font-size: 2rem;
-  letter-spacing: 2px;
-  margin: 0 0 8px 0;
+  letter-spacing: 1px;
   color: #ffd1a9;
   font-weight: 800;
+  margin-bottom: 0.5rem;
 }
 .left-sub {
-  font-size: 1rem;
-  font-weight: 700;
-  margin-bottom: 12px;
-  color: #fff;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
 }
 .left-copy {
   color: rgba(255, 255, 255, 0.9);
-  line-height: 1.4;
+  line-height: 1.5;
 }
 
-/* Decorative orange circles */
+/* --- Decorative circles --- */
 .decor-circle {
   position: absolute;
   border-radius: 50%;
@@ -69,67 +65,55 @@
   top: 60px;
 }
 
-/* Right sign-in card */
+/* --- Right login card --- */
 .right-panel {
   display: flex;
   align-items: center;
   justify-content: center;
+  background: #f9fafb;
 }
 .card {
   background: #fff;
-  width: 460px;
-  padding: 36px;
+  width: 440px;
+  padding: 40px;
   border-radius: 18px;
-  box-shadow: 0 20px 60px rgba(2, 6, 23, 0.12);
+  box-shadow: 0 16px 50px rgba(2, 6, 23, 0.1);
 }
 .card-title {
   font-size: 1.5rem;
   color: #0f172a;
-  margin: 0 0 6px 0;
+  margin: 0 0 8px 0;
 }
 .card-sub {
-  color: #6b7280;
+  color: #64748b;
   font-size: 0.95rem;
   margin-bottom: 18px;
 }
 
-/* Auth form styling */
+/* --- Form styling --- */
 .auth-form {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  margin-top: 6px;
 }
-
 .label {
   display: flex;
   flex-direction: column;
-  gap: 6px;
   font-size: 0.9rem;
   color: #334155;
+  text-align: left;
 }
-
-.label {
-  text-align: left; /* ensure label text is left-justified */
-  align-items: stretch; /* allow children (inputs) to stretch full width */
-}
-
 .input {
-  padding: 12px 12px;
+  padding: 12px;
   border-radius: 8px;
   border: 1px solid #e6e9ee;
-  outline: none;
   font-size: 1rem;
-  color: #0f172a;
-  transition: box-shadow 120ms ease, border-color 120ms ease;
-  width: 100%;
-  box-sizing: border-box;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
 }
 .input:focus {
-  box-shadow: 0 6px 18px rgba(11, 99, 183, 0.12);
   border-color: #0b63b7;
+  box-shadow: 0 6px 18px rgba(11, 99, 183, 0.12);
 }
-
 .error {
   color: #b91c1c;
   background: #fff1f2;
@@ -138,6 +122,7 @@
   font-size: 0.9rem;
 }
 
+/* --- Primary CTA --- */
 .primary.full {
   width: 100%;
   padding: 12px 14px;
@@ -149,40 +134,16 @@
   cursor: pointer;
   transition: transform 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
 }
-.primary.full:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  transform: none;
-}
 .primary.full:hover:not(:disabled) {
   transform: translateY(-2px);
   box-shadow: 0 12px 30px rgba(255, 138, 70, 0.18);
 }
-
-/* OAuth button styled orange CTA */
-.oauth-wrap {
-  margin-top: 12px;
-}
-.google-btn.full {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 14px;
-  border-radius: 8px;
-  border: none;
-  background: #ff7a00;
-  color: white;
-}
-.oauth-icon {
-  width: 20px;
-  height: 20px;
-}
-.google-text {
-  color: #fff;
-  font-weight: 700;
+.primary.full:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
+/* --- Footer note --- */
 .alt-note {
   margin-top: 18px;
   color: #475569;
@@ -193,8 +154,10 @@
   border: none;
   color: #ff7a00;
   font-weight: 600;
+  cursor: pointer;
 }
 
+/* --- Responsive --- */
 @media (max-width: 900px) {
   .split-wrapper {
     flex-direction: column;
@@ -205,6 +168,7 @@
   }
   .left-panel {
     order: 2;
+    text-align: center;
   }
   .right-panel {
     order: 1;
@@ -213,101 +177,4 @@
     width: 100%;
     border-radius: 12px;
   }
-}
-/* Additional styles for the Login component to complement Tailwind */
-/* Dark, Netflix-like login styling */
-.login-wrapper {
-  min-height: 100vh;
-  display: grid;
-  place-items: center;
-  background: radial-gradient(
-      ellipse at center,
-      rgba(255, 255, 255, 0.02) 0%,
-      rgba(0, 0, 0, 0.75) 40%
-    ),
-    linear-gradient(180deg, #000000 0%, #0b0b0b 100%);
-}
-
-.login-card {
-  width: 100%;
-  max-width: 420px;
-  padding: 36px 36px;
-  border-radius: 8px;
-  background: rgba(18, 18, 18, 0.92);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.03);
-}
-
-.login-title {
-  .panel {
-    flex: 1 1 50%;
-    min-height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .card {
-    background: #fff;
-    width: 460px;
-    padding: 36px;
-    border-radius: 18px;
-    box-shadow: 0 20px 60px rgba(2, 6, 23, 0.12);
-    margin: 0 80px;
-  }
-  color: #cbd5e1;
-}
-
-.google-btn {
-  background: #ffffff;
-  height: auto;
-  border: none;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 14px;
-  border-radius: 6px;
-}
-
-.oauth-icon {
-  width: 20px;
-  height: 20px;
-}
-
-.divider {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.divider hr {
-  flex: 1;
-  border: none;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-.input-dark {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  color: #e6eef8;
-  padding: 10px 12px;
-  outline: none;
-}
-.input-dark::placeholder {
-  color: rgba(230, 238, 248, 0.45);
-}
-
-.primary-btn {
-  background: #e50914;
-  color: white;
-  padding: 12px 14px;
-  border-radius: 6px;
-  border: none;
-  font-weight: 600;
-}
-.primary-cta {
-  box-shadow: 0 6px 18px rgba(233, 9, 20, 0.28);
-}
-
-.muted {
-  color: rgba(255, 255, 255, 0.6);
-  font-size: 0.95rem;
 }
