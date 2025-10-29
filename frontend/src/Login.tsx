@@ -1,56 +1,42 @@
 import "./css/login.css";
 import { useState } from "react";
+import { GoogleLogin, type CredentialResponse } from "@react-oauth/google";
 
 export default function Login() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
 
-  const validate = () => {
-    if (!email || !password) {
-      setError("Please enter both email and password.");
-      return false;
-    }
-    // Basic email format check
-    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!re.test(email)) {
-      setError("Please enter a valid email address.");
-      return false;
-    }
-    setError(null);
-    return true;
-  };
-
-  const onSubmit: React.FormEventHandler = async (e) => {
-    e.preventDefault();
-    if (!validate()) return;
-    setLoading(true);
+  const handleGoogleSuccess = async (credentialResponse: CredentialResponse) => {
     try {
-      // Placeholder: POST to backend login endpoint. Adapt URL as needed.
-      const resp = await fetch("/api/login", {
+      // Send the Google token to your backend for verification
+      const resp = await fetch("http://localhost:8000/api/auth/google", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ token: credentialResponse.credential }),
       });
 
       if (!resp.ok) {
         const data = await resp.json().catch(() => ({}));
-        throw new Error(data?.message || "Login failed");
+        throw new Error(data?.message || "Authentication failed");
       }
 
-      // On success: redirect or update app state. For now, simple reload.
+  const data = await resp.json();
+  // Store user info returned by backend so App/Dashboard can read it
+  // Expected shape: { user_email, user_name, user_id }
+  localStorage.setItem("user", JSON.stringify(data));
+      
+      // Redirect to the main app
       window.location.href = "/";
     } catch (err: unknown) {
-      // Safely extract message from unknown error
       const message =
         err && typeof err === "object" && "message" in err
           ? String((err as { message?: unknown }).message)
-          : "Login failed";
+          : "Authentication failed";
       setError(message);
-    } finally {
-      setLoading(false);
     }
+  };
+
+  const handleGoogleError = () => {
+    setError("Google Sign-In failed. Please try again.");
   };
 
   return (
@@ -77,40 +63,20 @@ export default function Login() {
             Sign in using your UFL email to access your Campus Compass account
           </p>
 
-          <form className="auth-form" onSubmit={onSubmit}>
-            <label className="label">
-              Email
-              <input
-                className="input"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@ufl.edu"
-                required
-              />
-            </label>
-
-            <label className="label">
-              Password
-              <input
-                className="input"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Password"
-                required
-              />
-            </label>
-
+          <form className="auth-form">
             {error && <div className="error">{error}</div>}
-
-            <button className="primary full" type="submit" disabled={loading}>
-              {loading ? "Signing in..." : "Sign in"}
-            </button>
+            
+            <GoogleLogin
+              onSuccess={handleGoogleSuccess}
+              onError={handleGoogleError}
+              useOneTap
+              text="signin_with"
+              theme="filled_blue"
+            />
           </form>
 
           <div className="alt-note">
-            Don't have an account? <button className="linkish">Sign Up</button>
+            Sign in with your Google account to access Campus Compass
           </div>
         </div>
       </div>
