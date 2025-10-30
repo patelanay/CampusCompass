@@ -3,3 +3,7 @@ uvicorn
 pymongo
 python-dotenv
 pydantic
+google-auth
+requests
+python-jose[cryptography]
+passlib[bcrypt]
