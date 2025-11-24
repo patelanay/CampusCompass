@@ -1,4 +1,5 @@
 {
   "python.defaultInterpreterPath": "c:/Users/William Chi/Documents/Sophomore Year/CEN3031/CampusCompass/.venv/Scripts/python.exe",
-  "python.terminal.activateEnvironment": true
+  "python.terminal.activateEnvironment": true,
+  "sarif-viewer.connectToGithubCodeScanning": "off"
 }
