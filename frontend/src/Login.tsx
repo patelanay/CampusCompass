@@ -75,6 +75,21 @@ export default function Login() {
             />
           </form>
 
+          {/* Guest mode - still requires clicking 'Continue as Guest' which sets a local sample user */}
+          <div className="mt-4 text-center">
+            <button
+              className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+              onClick={() => {
+                const guest = { user_email: "guest@campuscompass.local", user_name: "Guest User", user_id: "guest" };
+                localStorage.setItem("user", JSON.stringify(guest));
+                // Refresh / redirect to app so Dashboard picks up user
+                window.location.href = "/";
+              }}
+            >
+              Continue as Guest
+            </button>
+            <div className="text-sm text-gray-500 mt-2">Guest mode allows viewing a sample calendar (read-only).</div>
+          </div>
           <div className="alt-note">
             Sign in with your Google account to access Campus Compass
           </div>

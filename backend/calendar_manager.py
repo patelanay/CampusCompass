@@ -19,7 +19,7 @@ Usage:
   free_slots = manager.find_free_slots(user_id, start, end)
 """
 
-from datetime import datetime, timedelta, time
+from datetime import datetime, timedelta, time, timezone
 from enum import Enum
 from typing import List, Dict, Optional, Tuple
 from dataclasses import dataclass
@@ -137,6 +137,14 @@ class Calendar:
         """Initialize calendar for a user."""
         self.user_id = user_id
         self.events: Dict[str, CalendarEvent] = {}
+
+    def _ensure_aware(self, dt: datetime) -> datetime:
+        """Ensure datetime is timezone-aware (UTC)."""
+        if dt is None:
+            return dt
+        if dt.tzinfo is None:
+            return dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc)
     
     def add_event(self, event: CalendarEvent) -> None:
         """Add an event to the calendar."""
@@ -170,16 +178,21 @@ class Calendar:
         Returns:
             List of (start_time, end_time) tuples for each instance
         """
+        # Normalize inputs to timezone-aware UTC
+        start = self._ensure_aware(start)
+        end = self._ensure_aware(end)
+
         if event.recurrence == "none":
             # Single event - return if it falls in range
-            if start <= event.start_time < end:
+            ev_start = self._ensure_aware(event.start_time)
+            if start <= ev_start < end:
                 return [(event.start_time, event.end_time)]
             return []
         
         instances = []
-        current = event.start_time
+        current = self._ensure_aware(event.start_time)
         duration = event.end_time - event.start_time
-        limit = event.recurrence_end_date or end
+        limit = self._ensure_aware(event.recurrence_end_date) if event.recurrence_end_date else end
         
         while current < limit and current < end:
             if current >= start:
@@ -208,6 +221,10 @@ class Calendar:
         Returns:
             List of (start_time, end_time, original_event) tuples, sorted by time
         """
+        # Normalize inputs
+        start = self._ensure_aware(start)
+        end = self._ensure_aware(end)
+
         instances = []
         
         for event in self.events.values():
@@ -231,6 +248,10 @@ class Calendar:
         Returns:
             True if available, False if there's a conflict
         """
+        # Normalize inputs
+        start = self._ensure_aware(start)
+        end = self._ensure_aware(end)
+
         events = self.get_events_for_range(start, end)
         for event_start, event_end, _ in events:
             # Check if times overlap: start1 < end2 AND end1 > start2
@@ -260,12 +281,16 @@ class Calendar:
             List of (start, end) tuples for free slots
         """
         free_slots = []
-        current = start_date
+        # ensure aware
+        current = self._ensure_aware(start_date)
+        end_date = self._ensure_aware(end_date)
         
         while current.date() < end_date.date():
             # Define today's working hours
-            day_start = datetime.combine(current.date(), work_start)
-            day_end = datetime.combine(current.date(), work_end)
+            # preserve timezone info when combining dates/times
+            tz = current.tzinfo if current.tzinfo else timezone.utc
+            day_start = datetime.combine(current.date(), work_start).replace(tzinfo=tz)
+            day_end = datetime.combine(current.date(), work_end).replace(tzinfo=tz)
             
             # Get all busy times today
             busy = sorted(
@@ -290,7 +315,7 @@ class Calendar:
                 if gap_duration >= min_duration:
                     free_slots.append((slot_start, day_end))
             
-            current += timedelta(days=1)
+            current = current + timedelta(days=1)
         
         return free_slots
     
@@ -309,6 +334,10 @@ class Calendar:
         Returns:
             (start_time, end_time) tuple or None if not found
         """
+        # Make sure start/end are timezone-aware
+        start = self._ensure_aware(start)
+        end = self._ensure_aware(end)
+
         free_slots = self.find_free_slots(start, end, duration_minutes, work_start, work_end)
         if free_slots:
             slot_start, _ = free_slots[0]
@@ -322,6 +351,10 @@ class Calendar:
         Returns:
             Dict with total_events, total_hours, average_duration, events_by_type
         """
+        # normalize
+        start = self._ensure_aware(start)
+        end = self._ensure_aware(end)
+
         instances = self.get_events_for_range(start, end)
         
         if not instances:
@@ -395,13 +428,23 @@ class CalendarManager:
         Handles: datetime objects, ISO strings, common date strings
         Useful for accepting user input in various formats.
         """
+        # Return timezone-aware datetimes (normalize to UTC).
         if isinstance(dt_input, datetime):
-            return dt_input
+            # If the datetime is naive, assume UTC. If it has tzinfo, convert to UTC.
+            if dt_input.tzinfo is None:
+                return dt_input.replace(tzinfo=timezone.utc)
+            return dt_input.astimezone(timezone.utc)
         
         if isinstance(dt_input, str):
             # Try ISO format first (2023-11-13T10:30:00)
             try:
-                return datetime.fromisoformat(dt_input.replace('Z', '+00:00'))
+                dt = datetime.fromisoformat(dt_input.replace('Z', '+00:00'))
+                # Ensure timezone-aware (normalize to UTC)
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                else:
+                    dt = dt.astimezone(timezone.utc)
+                return dt
             except ValueError:
                 pass
             
@@ -409,7 +452,9 @@ class CalendarManager:
             formats = ['%Y-%m-%d %H:%M:%S', '%Y-%m-%d', '%m/%d/%Y %H:%M:%S', '%m/%d/%Y']
             for fmt in formats:
                 try:
-                    return datetime.strptime(dt_input, fmt)
+                    dt = datetime.strptime(dt_input, fmt)
+                    # parsed naive -> assume UTC
+                    return dt.replace(tzinfo=timezone.utc)
                 except ValueError:
                     continue
             
@@ -468,7 +513,7 @@ class CalendarManager:
                 'recurrence_end_date': self._parse_datetime(event_data['recurrence_end_date'])
                                       if event_data.get('recurrence_end_date') else None,
                 'reminders': event_data.get('reminders', [15, 60]),
-                'created_at': datetime.utcnow()
+                'created_at': datetime.now(timezone.utc)
             }
             
             result = self.collection.insert_one(doc)
@@ -553,9 +598,54 @@ class CalendarManager:
         except Exception as e:
             return {'success': False, 'error': str(e)}
     
-    def delete_event(self, event_id: str, user_id: str) -> Dict:
+    def delete_event(self, event_id: str, user_id: str, delete_future: bool = False, from_date: Optional[datetime] = None) -> Dict:
         """Delete an event."""
         try:
+            # If deleting future occurrences of a recurring event, we truncate the recurrence
+            if delete_future:
+                # Ensure from_date is timezone-aware
+                if from_date is None:
+                    from_date = datetime.now(timezone.utc)
+                else:
+                    if from_date.tzinfo is None:
+                        from_date = from_date.replace(tzinfo=timezone.utc)
+                    else:
+                        from_date = from_date.astimezone(timezone.utc)
+
+                # Load event doc
+                event = self.get_event(event_id, user_id)
+                if not event:
+                    return {'success': False, 'error': 'Event not found'}
+
+                # If it's not a recurring event, deleting future == deleting the event
+                if event.get('recurrence', 'none') == 'none':
+                    result = self.collection.delete_one({'_id': ObjectId(event_id), 'user_id': user_id})
+                    return {'success': result.deleted_count > 0}
+
+                # Parse the original event start time
+                try:
+                    original_start = self._parse_datetime(event.get('start_time'))
+                except Exception:
+                    # Fallback: treat start_time as naive UTC
+                    original_start = event.get('start_time')
+                    if isinstance(original_start, datetime) and original_start.tzinfo is None:
+                        original_start = original_start.replace(tzinfo=timezone.utc)
+
+                # If from_date is at or before the original start: delete entire event
+                if from_date <= original_start:
+                    result = self.collection.delete_one({'_id': ObjectId(event_id), 'user_id': user_id})
+                    return {'success': result.deleted_count > 0}
+
+                # Otherwise, truncate the recurrence by setting recurrence_end_date to just before from_date
+                new_end = from_date - timedelta(microseconds=1)
+                update_result = self.collection.update_one(
+                    {'_id': ObjectId(event_id), 'user_id': user_id},
+                    {'$set': {'recurrence_end_date': new_end}}
+                )
+                # If modified_count is 0, maybe the date was already set earlier; return success True anyway
+                return {'success': update_result.modified_count > 0 or update_result.matched_count > 0}
+
+            # Default behavior: delete the event document entirely
             result = self.collection.delete_one({
                 '_id': ObjectId(event_id),
                 'user_id': user_id
