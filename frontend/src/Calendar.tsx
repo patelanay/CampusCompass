@@ -264,7 +264,7 @@ export default function Calendar({ userId }: CalendarProps) {
               setShowEventForm(true);
             }}
             className="px-4 py-1 bg-[#FA4616] text-white rounded hover:bg-[#d93a0f] ml-2"
-            style={{ display: userId === "guest" ? "none" : undefined }}
+            style={{ display: userId === "demo" ? "none" : undefined }}
           >
             + New Event
           </button>
@@ -297,7 +297,7 @@ export default function Calendar({ userId }: CalendarProps) {
               date={currentDate}
               onNavigate={handleNavigate}
               onSelectEvent={handleSelectEvent}
-              onSelectSlot={userId === "guest" ? undefined : handleSelectSlot}
+              onSelectSlot={userId === "demo" ? undefined : handleSelectSlot}
               selectable={userId !== "guest"}
               eventPropGetter={eventStyleGetter}
               popup
@@ -311,7 +311,7 @@ export default function Calendar({ userId }: CalendarProps) {
         <EventForm
           event={selectedEvent}
           userId={userId}
-          readOnly={userId === "guest"}
+          readOnly={userId === "demo"}
           startDate={formStartDate}
           onClose={() => {
             setShowEventForm(false);
