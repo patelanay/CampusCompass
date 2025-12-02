@@ -11,7 +11,7 @@ import os
 from dotenv import load_dotenv
 from google.oauth2 import id_token
 from google.auth.transport import requests
-from calendar_manager import CalendarManager
+from calendar_manager import CalendarManager, InMemoryCalendarManager
 from db_helpers import createMongoClient, loadEnvVariables
 from pymongo import MongoClient
 import uuid
@@ -124,6 +124,7 @@ async def startup_event():
         print("CalendarManager initialized successfully")
     except Exception as e:
         print(f"Warning: Failed to initialize MongoDB/CalendarManager: {e}")
+<<<<<<< Updated upstream
         print("Falling back to in-memory calendar manager (non-persistent). Calendar features will work for this session.")
         # Use in-memory fallback so the calendar endpoints still work without MongoDB
         try:
@@ -131,6 +132,15 @@ async def startup_event():
             print("InMemoryCalendarManager initialized successfully")
         except Exception as e2:
             print(f"Failed to initialize InMemoryCalendarManager: {e2}")
+=======
+        try:
+            # Fall back to an in-memory calendar manager for local development
+            calendar_manager = InMemoryCalendarManager()
+            print("Using InMemoryCalendarManager fallback — calendar features available (non-persistent).")
+        except Exception as e2:
+            print(f"Failed to initialize fallback calendar manager: {e2}")
+            print("Calendar features will not be available")
+>>>>>>> Stashed changes
 
 @app.on_event("shutdown")
 async def shutdown_event():
