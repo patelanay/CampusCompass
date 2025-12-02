@@ -10,6 +10,7 @@ from google.oauth2 import id_token
 from google.auth.transport import requests
 from calendar_manager import CalendarManager
 from db_helpers import createMongoClient, loadEnvVariables
+from campus_calendar import InMemoryCalendarManager
 from pymongo import MongoClient
 
 # Load environment variables
@@ -89,7 +90,14 @@ async def startup_event():
         print("CalendarManager initialized successfully")
     except Exception as e:
         print(f"Warning: Failed to initialize MongoDB/CalendarManager: {e}")
-        print("Calendar features will not be available")
+        print("Falling back to in-memory calendar manager (no persistence).")
+        # Use an in-memory fallback so the app remains functional for adding events during local dev
+        try:
+            calendar_manager = InMemoryCalendarManager()
+            print("In-memory CalendarManager initialized successfully")
+        except Exception as e2:
+            print(f"Failed to initialize in-memory calendar manager: {e2}")
+            print("Calendar features will not be available")
 
 @app.on_event("shutdown")
 async def shutdown_event():
