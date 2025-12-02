@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import "./css/app.css";
 import Calendar from "./Calendar";
+import Taskbar from "./Taskbar";
 
 interface UserData {
   user_name: string;
@@ -56,9 +57,14 @@ export default function Dashboard() {
         </div>
       </header>
 
-      {/* Calendar Component */}
-      <main className="flex-1 overflow-hidden">
-        <Calendar userId={user.user_id} />
+      {/* Main content - Calendar and Taskbar */}
+      <main className="flex-1 overflow-hidden flex">
+        <div className="flex-1 overflow-hidden">
+          <Calendar userId={user.user_id} />
+        </div>
+        <div className="w-80 overflow-hidden border-l border-gray-200">
+          <Taskbar userId={user.user_id} />
+        </div>
       </main>
     </div>
   );
