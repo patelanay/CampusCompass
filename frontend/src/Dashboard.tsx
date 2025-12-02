@@ -21,6 +21,7 @@ export default function Dashboard() {
 
   const handleLogout = () => {
     localStorage.removeItem("user");
+    localStorage.removeItem("is_guest");
     window.location.href = "/";
   };
 

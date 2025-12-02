@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { type CalendarEvent, type EventCreateData, type EventUpdateData, createEvent, updateEvent } from "./api/calendarApi";
+import { type CalendarEvent, type EventCreateData, type EventUpdateData, createEvent, updateEvent, deleteEvent } from "./api/calendarApi";
 import { format } from "date-fns";
 
 interface EventFormProps {
@@ -8,6 +8,7 @@ interface EventFormProps {
   startDate?: Date;
   onClose: () => void;
   onSave: () => void;
+  readOnly?: boolean;
 }
 
 const EVENT_TYPES = [
@@ -38,7 +39,7 @@ const EVENT_TYPE_COLORS: Record<string, string> = {
   other: "#95a5a6",
 };
 
-export default function EventForm({ event, userId, startDate, onClose, onSave }: EventFormProps) {
+export default function EventForm({ event, userId, startDate, onClose, onSave, readOnly = false }: EventFormProps) {
   const [title, setTitle] = useState("");
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
@@ -79,6 +80,11 @@ export default function EventForm({ event, userId, startDate, onClose, onSave }:
     setLoading(true);
 
     try {
+        if (readOnly) {
+          setError("Guest mode is read-only: changes are not allowed.");
+          setLoading(false);
+          return;
+        }
       const start = new Date(startTime);
       const end = new Date(endTime);
 
@@ -166,6 +172,7 @@ export default function EventForm({ event, userId, startDate, onClose, onSave }:
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
+                disabled={readOnly}
                 required
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#003087]"
               />
@@ -180,6 +187,7 @@ export default function EventForm({ event, userId, startDate, onClose, onSave }:
                   type="datetime-local"
                   value={startTime}
                   onChange={(e) => setStartTime(e.target.value)}
+                  disabled={readOnly}
                   required
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#003087]"
                 />
@@ -193,6 +201,7 @@ export default function EventForm({ event, userId, startDate, onClose, onSave }:
                   type="datetime-local"
                   value={endTime}
                   onChange={(e) => setEndTime(e.target.value)}
+                  disabled={readOnly}
                   required
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#003087]"
                 />
@@ -206,6 +215,7 @@ export default function EventForm({ event, userId, startDate, onClose, onSave }:
               <select
                 value={eventType}
                 onChange={(e) => setEventType(e.target.value)}
+                disabled={readOnly}
                 required
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#003087]"
               >
@@ -223,6 +233,7 @@ export default function EventForm({ event, userId, startDate, onClose, onSave }:
                 type="text"
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
+                disabled={readOnly}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#003087]"
               />
             </div>
@@ -232,6 +243,7 @@ export default function EventForm({ event, userId, startDate, onClose, onSave }:
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
+                disabled={readOnly}
                 rows={3}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#003087]"
               />
@@ -242,6 +254,7 @@ export default function EventForm({ event, userId, startDate, onClose, onSave }:
               <select
                 value={recurrence}
                 onChange={(e) => setRecurrence(e.target.value)}
+                disabled={readOnly}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#003087]"
               >
                 {RECURRENCE_TYPES.map((type) => (
@@ -261,27 +274,80 @@ export default function EventForm({ event, userId, startDate, onClose, onSave }:
                   type="datetime-local"
                   value={recurrenceEndDate}
                   onChange={(e) => setRecurrenceEndDate(e.target.value)}
+                  disabled={readOnly}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#003087]"
                 />
               </div>
             )}
 
-            <div className="flex justify-end gap-3 pt-4">
+            <div className="flex justify-between items-center gap-3 pt-4">
+              {event && !readOnly && (
+                <div className="flex gap-2 items-center">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!event) return;
+                      if (!confirm("Delete this event series? This will remove the event entirely.")) return;
+                      setLoading(true);
+                      try {
+                        await deleteEvent(event.id, userId);
+                        onSave();
+                        onClose();
+                      } catch (err) {
+                        setError(err instanceof Error ? err.message : "Failed to delete event");
+                      } finally {
+                        setLoading(false);
+                      }
+                    }}
+                    className="px-3 py-1 border border-red-400 bg-red-50 text-red-700 rounded-md hover:bg-red-100"
+                    disabled={loading}
+                  >
+                    Delete
+                  </button>
+
+                  {event.recurrence !== "none" && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!event) return;
+                        const deleteFrom = new Date(event.start_time);
+                        if (!confirm(`Delete this occurrence and all future occurrences starting from ${deleteFrom.toLocaleString()}?`)) return;
+                        setLoading(true);
+                        try {
+                          await deleteEvent(event.id, userId, true, deleteFrom);
+                          onSave();
+                          onClose();
+                        } catch (err) {
+                          setError(err instanceof Error ? err.message : "Failed to delete event series from date");
+                        } finally {
+                          setLoading(false);
+                        }
+                      }}
+                      className="px-3 py-1 border border-yellow-400 bg-yellow-50 text-yellow-700 rounded-md hover:bg-yellow-100"
+                      disabled={loading}
+                    >
+                      Delete this & future
+                    </button>
+                  )}
+                </div>
+              )}
               <button
                 type="button"
                 onClick={onClose}
                 className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
                 disabled={loading}
               >
-                Cancel
+                {readOnly ? "Close" : "Cancel"}
               </button>
-              <button
-                type="submit"
-                className="px-4 py-2 bg-[#003087] text-white rounded-md hover:bg-[#002366] disabled:opacity-50"
-                disabled={loading}
-              >
-                {loading ? "Saving..." : "Save"}
-              </button>
+              {!readOnly && (
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-[#003087] text-white rounded-md hover:bg-[#002366] disabled:opacity-50"
+                  disabled={loading}
+                >
+                  {loading ? "Saving..." : "Save"}
+                </button>
+              )}
             </div>
           </form>
         </div>

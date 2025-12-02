@@ -3,7 +3,7 @@ import { Calendar as BigCalendar, momentLocalizer, type View, type SlotInfo } fr
 import moment from "moment";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import "./css/calendar.css";
-import { type CalendarEvent, getEvents, deleteEvent } from "./api/calendarApi";
+import { type CalendarEvent, getEvents } from "./api/calendarApi";
 import EventForm from "./EventForm";
 import { format } from "date-fns";
 
@@ -160,6 +160,15 @@ export default function Calendar({ userId }: CalendarProps) {
     setFormStartDate(undefined);
   };
 
+  // Detect guest mode: either legacy userId 'guest' or a session marked 'is_guest' after OAuth
+  const isGuest = (() => {
+    try {
+      return userId === "guest" || (typeof window !== "undefined" && localStorage.getItem("is_guest") === "true");
+    } catch {
+      return userId === "guest";
+    }
+  })();
+
 
   // Navigation handlers
   const handleNavigate = (date: Date) => {
@@ -201,8 +210,8 @@ export default function Calendar({ userId }: CalendarProps) {
   return (
     <div className="w-full h-full flex flex-col">
       {/* Calendar Controls */}
-      <div className="bg-white p-4 border-b border-gray-200 flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-2">
+          <div className="bg-white p-4 border-b border-gray-200 flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
           <button
             onClick={goToPrevious}
             className="px-3 py-1 border border-gray-300 rounded hover:bg-gray-50"
@@ -264,6 +273,7 @@ export default function Calendar({ userId }: CalendarProps) {
               setShowEventForm(true);
             }}
             className="px-4 py-1 bg-[#FA4616] text-white rounded hover:bg-[#d93a0f] ml-2"
+            style={{ display: isGuest ? "none" : undefined }}
           >
             + New Event
           </button>
@@ -278,26 +288,26 @@ export default function Calendar({ userId }: CalendarProps) {
       )}
 
       {/* Calendar */}
-      <div className="flex-1 p-4 bg-gray-50">
+      <div className="flex-1 bg-gray-50 overflow-hidden p-4">
         {loading ? (
           <div className="flex items-center justify-center h-full">
             <p className="text-gray-500">Loading events...</p>
           </div>
         ) : (
-          <div className="h-full bg-white rounded-lg shadow-sm">
-            <BigCalendar
+          <div className="h-full w-full bg-white rounded-lg shadow-sm">
+              <BigCalendar
               localizer={localizer}
               events={calendarEvents}
               startAccessor="start"
               endAccessor="end"
-              style={{ height: "100%", minHeight: "600px" }}
+              style={{ height: "100%", width: "100%" }}
               view={currentView}
               onView={handleViewChange}
               date={currentDate}
               onNavigate={handleNavigate}
               onSelectEvent={handleSelectEvent}
-              onSelectSlot={handleSelectSlot}
-              selectable
+              onSelectSlot={isGuest ? undefined : handleSelectSlot}
+              selectable={!isGuest}
               eventPropGetter={eventStyleGetter}
               popup
             />
@@ -310,6 +320,7 @@ export default function Calendar({ userId }: CalendarProps) {
         <EventForm
           event={selectedEvent}
           userId={userId}
+          readOnly={isGuest}
           startDate={formStartDate}
           onClose={() => {
             setShowEventForm(false);

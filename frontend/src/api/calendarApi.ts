@@ -73,6 +73,65 @@ export async function getEvents(
   start?: Date,
   end?: Date
 ): Promise<CalendarEvent[]> {
+  // Guest mode: return a static sample calendar (read-only demo)
+  const isGuestUser = (id?: string) => {
+    if (id === "guest") return true;
+    try {
+      return typeof window !== "undefined" && localStorage.getItem("is_guest") === "true";
+    } catch {
+      return false;
+    }
+  };
+
+  if (isGuestUser(userId)) {
+    // Simple sample events with different types and a recurring example
+    const sample: CalendarEvent[] = [
+      {
+        id: "g1",
+        user_id: "guest",
+        title: "Class: Intro to Programming",
+        start_time: new Date().toISOString().replace(/T.*$/, "T09:00:00.000Z"),
+        end_time: new Date().toISOString().replace(/T.*$/, "T10:30:00.000Z"),
+        event_type: "class",
+        color: "#3498db",
+        location: "Gainesville Hall 101",
+        description: "Weekly lecture",
+        recurrence: "weekly",
+        recurrence_end_date: null,
+        reminders: [15, 60]
+      },
+      {
+        id: "g2",
+        user_id: "guest",
+        title: "Study Group",
+        start_time: new Date().toISOString().replace(/T.*$/, "T12:00:00.000Z"),
+        end_time: new Date().toISOString().replace(/T.*$/, "T13:00:00.000Z"),
+        event_type: "study_group",
+        color: "#2ecc71",
+        location: "Library - Room B",
+        description: "Weekly study session",
+        recurrence: "weekly",
+        recurrence_end_date: null,
+        reminders: [15]
+      },
+      {
+        id: "g3",
+        user_id: "guest",
+        title: "Exam Prep",
+        start_time: new Date().toISOString().replace(/T.*$/, "T16:00:00.000Z"),
+        end_time: new Date().toISOString().replace(/T.*$/, "T17:30:00.000Z"),
+        event_type: "personal",
+        color: "#9b59b6",
+        location: "Study Room 12",
+        description: "Prepare for upcoming midterm",
+        recurrence: "none",
+        recurrence_end_date: null,
+        reminders: [60]
+      }
+    ];
+
+    return Promise.resolve(sample);
+  }
   const params = new URLSearchParams({ user_id: userId });
   if (start) {
     params.append("start", start.toISOString());
@@ -95,6 +154,18 @@ export async function getEvents(
  * Create a new calendar event
  */
 export async function createEvent(eventData: EventCreateData): Promise<CalendarEvent> {
+  // Disallow creating events in guest mode
+  const isGuest = () => {
+    try {
+      return localStorage.getItem("is_guest") === "true" || eventData.user_id === "guest";
+    } catch {
+      return eventData.user_id === "guest";
+    }
+  };
+
+  if (isGuest()) {
+    throw new Error("Guest mode is read-only: cannot create events.");
+  }
   const response = await fetch(`${API_BASE_URL}/events`, {
     method: "POST",
     headers: {
@@ -119,6 +190,9 @@ export async function updateEvent(
   userId: string,
   eventData: EventUpdateData
 ): Promise<void> {
+  if (typeof window !== "undefined" && localStorage.getItem("is_guest") === "true") {
+    throw new Error("Guest mode is read-only: cannot update events.");
+  }
   const params = new URLSearchParams({ user_id: userId });
   const response = await fetch(`${API_BASE_URL}/events/${eventId}?${params.toString()}`, {
     method: "PUT",
@@ -137,8 +211,20 @@ export async function updateEvent(
 /**
  * Delete a calendar event
  */
-export async function deleteEvent(eventId: string, userId: string): Promise<void> {
+export async function deleteEvent(
+  eventId: string,
+  userId: string,
+  deleteFuture: boolean = false,
+  fromDate?: Date
+): Promise<void> {
+  if (typeof window !== "undefined" && localStorage.getItem("is_guest") === "true") {
+    throw new Error("Guest mode is read-only: cannot delete events.");
+  }
   const params = new URLSearchParams({ user_id: userId });
+  if (deleteFuture) {
+    params.append('delete_future', 'true');
+    if (fromDate) params.append('from_date', fromDate.toISOString());
+  }
   const response = await fetch(`${API_BASE_URL}/events/${eventId}?${params.toString()}`, {
     method: "DELETE",
   });

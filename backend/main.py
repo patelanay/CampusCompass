@@ -3,7 +3,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 import os
 from dotenv import load_dotenv
 from google.oauth2 import id_token
@@ -171,10 +171,14 @@ async def get_events(
         if start:
             start_clean = start.replace('Z', '+00:00') if 'Z' in start else start
             start_dt = datetime.fromisoformat(start_clean)
+            if start_dt.tzinfo is None:
+                start_dt = start_dt.replace(tzinfo=timezone.utc)
         end_dt = None
         if end:
             end_clean = end.replace('Z', '+00:00') if 'Z' in end else end
             end_dt = datetime.fromisoformat(end_clean)
+            if end_dt.tzinfo is None:
+                end_dt = end_dt.replace(tzinfo=timezone.utc)
         
         events = calendar_manager.get_user_events(user_id, start_dt, end_dt)
         
@@ -264,13 +268,30 @@ async def update_event(event_id: str, event_data: EventUpdate, user_id: str = Qu
         raise HTTPException(status_code=500, detail=f"Error updating event: {str(e)}")
 
 @app.delete("/api/calendar/events/{event_id}")
-async def delete_event(event_id: str, user_id: str = Query(..., description="User ID")):
+async def delete_event(
+    event_id: str,
+    user_id: str = Query(..., description="User ID"),
+    delete_future: bool = Query(False, description="If true, delete this event and future occurrences (for recurring events)"),
+    from_date: Optional[str] = Query(None, description="ISO datetime to begin deleting future occurrences from; defaults to now")
+):
     """Delete a calendar event."""
     if not calendar_manager:
         raise HTTPException(status_code=503, detail="Calendar service unavailable")
     
     try:
-        result = calendar_manager.delete_event(event_id, user_id)
+        # Support deleting only future occurrences for recurring events
+        parsed_from = None
+        if delete_future:
+            if from_date:
+                # normalize ISO string
+                from_clean = from_date.replace('Z', '+00:00') if 'Z' in from_date else from_date
+                parsed_from = datetime.fromisoformat(from_clean)
+                if parsed_from.tzinfo is None:
+                    parsed_from = parsed_from.replace(tzinfo=timezone.utc)
+            else:
+                parsed_from = datetime.now(timezone.utc)
+
+        result = calendar_manager.delete_event(event_id, user_id, delete_future=delete_future, from_date=parsed_from)
         
         if result['success']:
             return {"success": True}
@@ -296,7 +317,11 @@ async def get_free_slots(
         start_clean = start.replace('Z', '+00:00') if 'Z' in start else start
         end_clean = end.replace('Z', '+00:00') if 'Z' in end else end
         start_dt = datetime.fromisoformat(start_clean)
+        if start_dt.tzinfo is None:
+            start_dt = start_dt.replace(tzinfo=timezone.utc)
         end_dt = datetime.fromisoformat(end_clean)
+        if end_dt.tzinfo is None:
+            end_dt = end_dt.replace(tzinfo=timezone.utc)
         
         result = calendar_manager.find_free_slots(user_id, start_dt, end_dt, min_duration)
         
@@ -323,7 +348,11 @@ async def get_statistics(
         start_clean = start.replace('Z', '+00:00') if 'Z' in start else start
         end_clean = end.replace('Z', '+00:00') if 'Z' in end else end
         start_dt = datetime.fromisoformat(start_clean)
+        if start_dt.tzinfo is None:
+            start_dt = start_dt.replace(tzinfo=timezone.utc)
         end_dt = datetime.fromisoformat(end_clean)
+        if end_dt.tzinfo is None:
+            end_dt = end_dt.replace(tzinfo=timezone.utc)
         
         result = calendar_manager.get_statistics(user_id, start_dt, end_dt)
         
