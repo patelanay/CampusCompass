@@ -4,6 +4,8 @@ import { GoogleLogin, type CredentialResponse } from "@react-oauth/google";
 
 export default function Login() {
   const [error, setError] = useState<string | null>(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [userData, setUserData] = useState<{ user_email: string; user_name: string; user_id: string } | null>(null);
 
   const handleGoogleSuccess = async (credentialResponse: CredentialResponse) => {
     try {
@@ -19,13 +21,10 @@ export default function Login() {
         throw new Error(data?.message || "Authentication failed");
       }
 
-  const data = await resp.json();
-  // Store user info returned by backend so App/Dashboard can read it
-  // Expected shape: { user_email, user_name, user_id }
-  localStorage.setItem("user", JSON.stringify(data));
-      
-      // Redirect to the main app
-      window.location.href = "/";
+      const data = await resp.json();
+      setUserData(data);
+      setIsLoggedIn(true);
+      setError(null);
     } catch (err: unknown) {
       const message =
         err && typeof err === "object" && "message" in err
@@ -37,6 +36,27 @@ export default function Login() {
 
   const handleGoogleError = () => {
     setError("Google Sign-In failed. Please try again.");
+  };
+
+  const handleContinueAsGuest = () => {
+    // User has authenticated, now set guest mode
+    if (userData) {
+      const guest = {
+        user_email: userData.user_email,
+        user_name: userData.user_name,
+        user_id: "guest",
+      };
+      localStorage.setItem("user", JSON.stringify(guest));
+      window.location.href = "/";
+    }
+  };
+
+  const handleContinueAsNormalUser = () => {
+    // User has authenticated, use their real credentials
+    if (userData) {
+      localStorage.setItem("user", JSON.stringify(userData));
+      window.location.href = "/";
+    }
   };
 
   return (
@@ -65,31 +85,62 @@ export default function Login() {
 
           <form className="auth-form">
             {error && <div className="error">{error}</div>}
-            
-            <GoogleLogin
-              onSuccess={handleGoogleSuccess}
-              onError={handleGoogleError}
-              useOneTap
-              text="signin_with"
-              theme="filled_blue"
-            />
+
+            {!isLoggedIn ? (
+              <>
+                <GoogleLogin
+                  onSuccess={handleGoogleSuccess}
+                  onError={handleGoogleError}
+                  useOneTap
+                  text="signin_with"
+                  theme="filled_blue"
+                />
+
+                {/* Guest mode option - still shows same UI but requires login first */}
+                <div className="mt-4 text-center">
+                  <button
+                    type="button"
+                    className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 cursor-not-allowed opacity-50"
+                    disabled
+                  >
+                    Continue as Guest
+                  </button>
+                  <div className="text-sm text-gray-500 mt-2">
+                    Sign in first to access guest mode
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="success-message mb-4 p-3 bg-green-50 border border-green-200 rounded text-green-700 text-sm">
+                  ✓ Signed in as {userData?.user_name} ({userData?.user_email})
+                </div>
+
+                <div className="flex flex-col gap-3">
+                  <button
+                    type="button"
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition"
+                    onClick={handleContinueAsNormalUser}
+                  >
+                    Continue as {userData?.user_name}
+                  </button>
+
+                  <button
+                    type="button"
+                    className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition"
+                    onClick={handleContinueAsGuest}
+                  >
+                    Continue as Guest
+                  </button>
+                </div>
+
+                <div className="text-sm text-gray-500 mt-2">
+                  Guest mode allows viewing a sample calendar (read-only).
+                </div>
+              </>
+            )}
           </form>
 
-          {/* Guest mode - still requires clicking 'Continue as Guest' which sets a local sample user */}
-          <div className="mt-4 text-center">
-            <button
-              className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-              onClick={() => {
-                const guest = { user_email: "guest@campuscompass.local", user_name: "Guest User", user_id: "guest" };
-                localStorage.setItem("user", JSON.stringify(guest));
-                // Refresh / redirect to app so Dashboard picks up user
-                window.location.href = "/";
-              }}
-            >
-              Continue as Guest
-            </button>
-            <div className="text-sm text-gray-500 mt-2">Guest mode allows viewing a sample calendar (read-only).</div>
-          </div>
           <div className="alt-note">
             Sign in with your Google account to access Campus Compass
           </div>
