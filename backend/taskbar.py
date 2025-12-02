@@ -20,7 +20,7 @@ Usage:
   taskbar.list_tasks()
 """
 
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import List, Dict, Optional
 from dataclasses import dataclass, field
 import uuid
@@ -35,21 +35,21 @@ class Task:
     Represents a task in the taskbar.
 
     Attributes:
-        title: Task name
         id: Unique task identifier
+        title: Task name
         description: Additional details (optional)
         priority: Priority level (low, medium, high)
         due_date: When the task is due (optional)
         completed: Whether the task is completed
         created_at: When the task was created
     """
-    title: str
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    title: str
     description: Optional[str] = None
     priority: str = "medium"  # Default priority
     due_date: Optional[datetime] = None
     completed: bool = False
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = field(default_factory=datetime.utcnow)
 
     def to_dict(self) -> Dict:
         """Convert task to dictionary for JSON/DB storage."""
@@ -125,3 +125,10 @@ class Taskbar:
             return False
         task.completed = True
         return True
+
+# Example usage:
+# taskbar = Taskbar()
+# task_id = taskbar.add_task("Finish project", "Complete the backend module", "high", datetime(2025, 12, 10))
+# taskbar.edit_task(task_id, {"priority": "medium"})
+# taskbar.mark_task_completed(task_id)
+# print(taskbar.list_tasks())
