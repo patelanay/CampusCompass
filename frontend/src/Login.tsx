@@ -23,8 +23,6 @@ export default function Login() {
   // Store user info returned by backend so App/Dashboard can read it
   // Expected shape: { user_email, user_name, user_id }
   localStorage.setItem("user", JSON.stringify(data));
-  // ensure we are not leaving a stale guest flag set from a previous flow
-  localStorage.removeItem("is_guest");
       
       // Redirect to the main app
       window.location.href = "/";
@@ -39,37 +37,6 @@ export default function Login() {
 
   const handleGoogleError = () => {
     setError("Google Sign-In failed. Please try again.");
-  };
-
-  // Guest path: user clicked 'Continue as Guest' and we show a GoogleLogin specifically
-  const [guestModePending, setGuestModePending] = useState(false);
-
-  const handleGuestGoogleSuccess = async (credentialResponse: CredentialResponse) => {
-    try {
-      // same backend verification flow
-      const resp = await fetch("http://localhost:8000/api/auth/google", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: credentialResponse.credential }),
-      });
-
-      if (!resp.ok) {
-        const data = await resp.json().catch(() => ({}));
-        throw new Error(data?.message || "Authentication failed");
-      }
-
-      const data = await resp.json();
-      // store user info and mark session as a guest demo
-      localStorage.setItem("user", JSON.stringify(data));
-      localStorage.setItem("is_guest", "true");
-      window.location.href = "/";
-    } catch (err: unknown) {
-      const message =
-        err && typeof err === "object" && "message" in err
-          ? String((err as { message?: unknown }).message)
-          : "Authentication failed";
-      setError(message);
-    }
   };
 
   return (
@@ -108,35 +75,20 @@ export default function Login() {
             />
           </form>
 
-          {/* Guest mode requires signing in with Google, then the session will be marked read-only */}
+          {/* Guest mode - still requires clicking 'Continue as Guest' which sets a local sample user */}
           <div className="mt-4 text-center">
-            {!guestModePending ? (
-              <button
-                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-                onClick={() => setGuestModePending(true)}
-              >
-                Continue as Guest (requires Google sign-in)
-              </button>
-            ) : (
-              <div className="space-y-2 flex flex-col items-center">
-                <div className="text-sm text-gray-600">Sign in with Google to continue as a guest demo (read-only).</div>
-                <GoogleLogin
-                  onSuccess={handleGuestGoogleSuccess}
-                  onError={handleGoogleError}
-                  text="signin_with"
-                  theme="filled_blue"
-                />
-                <div>
-                  <button
-                    className="text-sm text-gray-500 underline mt-1"
-                    onClick={() => setGuestModePending(false)}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            )}
-            <div className="text-sm text-gray-500 mt-2">Guest mode will keep the app read-only for demo purposes.</div>
+            <button
+              className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+              onClick={() => {
+                const guest = { user_email: "guest@campuscompass.local", user_name: "Guest User", user_id: "guest" };
+                localStorage.setItem("user", JSON.stringify(guest));
+                // Refresh / redirect to app so Dashboard picks up user
+                window.location.href = "/";
+              }}
+            >
+              Continue as Guest
+            </button>
+            <div className="text-sm text-gray-500 mt-2">Guest mode allows viewing a sample calendar (read-only).</div>
           </div>
           <div className="alt-note">
             Sign in with your Google account to access Campus Compass

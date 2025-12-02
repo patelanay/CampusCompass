@@ -30,8 +30,7 @@ function App() {
 
   return (
     <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID || ""}>
-      {/* When logged in, allow children (Dashboard) to stretch to full viewport */}
-      <div className={`app-inner ${isLoggedIn ? "app-full" : ""}`}>{isLoggedIn ? <Dashboard /> : <Login />}</div>
+      <div className="app-inner">{isLoggedIn ? <Dashboard /> : <Login />}</div>
     </GoogleOAuthProvider>
   );
 }

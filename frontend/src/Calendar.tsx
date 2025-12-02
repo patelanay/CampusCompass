@@ -160,15 +160,6 @@ export default function Calendar({ userId }: CalendarProps) {
     setFormStartDate(undefined);
   };
 
-  // Detect guest mode: either legacy userId 'guest' or a session marked 'is_guest' after OAuth
-  const isGuest = (() => {
-    try {
-      return userId === "guest" || (typeof window !== "undefined" && localStorage.getItem("is_guest") === "true");
-    } catch {
-      return userId === "guest";
-    }
-  })();
-
 
   // Navigation handlers
   const handleNavigate = (date: Date) => {
@@ -273,7 +264,7 @@ export default function Calendar({ userId }: CalendarProps) {
               setShowEventForm(true);
             }}
             className="px-4 py-1 bg-[#FA4616] text-white rounded hover:bg-[#d93a0f] ml-2"
-            style={{ display: isGuest ? "none" : undefined }}
+            style={{ display: userId === "guest" ? "none" : undefined }}
           >
             + New Event
           </button>
@@ -306,8 +297,8 @@ export default function Calendar({ userId }: CalendarProps) {
               date={currentDate}
               onNavigate={handleNavigate}
               onSelectEvent={handleSelectEvent}
-              onSelectSlot={isGuest ? undefined : handleSelectSlot}
-              selectable={!isGuest}
+              onSelectSlot={userId === "guest" ? undefined : handleSelectSlot}
+              selectable={userId !== "guest"}
               eventPropGetter={eventStyleGetter}
               popup
             />
@@ -320,7 +311,7 @@ export default function Calendar({ userId }: CalendarProps) {
         <EventForm
           event={selectedEvent}
           userId={userId}
-          readOnly={isGuest}
+          readOnly={userId === "guest"}
           startDate={formStartDate}
           onClose={() => {
             setShowEventForm(false);

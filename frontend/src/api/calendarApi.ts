@@ -74,16 +74,7 @@ export async function getEvents(
   end?: Date
 ): Promise<CalendarEvent[]> {
   // Guest mode: return a static sample calendar (read-only demo)
-  const isGuestUser = (id?: string) => {
-    if (id === "guest") return true;
-    try {
-      return typeof window !== "undefined" && localStorage.getItem("is_guest") === "true";
-    } catch {
-      return false;
-    }
-  };
-
-  if (isGuestUser(userId)) {
+  if (userId === "guest") {
     // Simple sample events with different types and a recurring example
     const sample: CalendarEvent[] = [
       {
@@ -155,15 +146,7 @@ export async function getEvents(
  */
 export async function createEvent(eventData: EventCreateData): Promise<CalendarEvent> {
   // Disallow creating events in guest mode
-  const isGuest = () => {
-    try {
-      return localStorage.getItem("is_guest") === "true" || eventData.user_id === "guest";
-    } catch {
-      return eventData.user_id === "guest";
-    }
-  };
-
-  if (isGuest()) {
+  if (eventData.user_id === "guest") {
     throw new Error("Guest mode is read-only: cannot create events.");
   }
   const response = await fetch(`${API_BASE_URL}/events`, {
@@ -190,7 +173,7 @@ export async function updateEvent(
   userId: string,
   eventData: EventUpdateData
 ): Promise<void> {
-  if (typeof window !== "undefined" && localStorage.getItem("is_guest") === "true") {
+  if (userId === "guest") {
     throw new Error("Guest mode is read-only: cannot update events.");
   }
   const params = new URLSearchParams({ user_id: userId });
@@ -217,7 +200,7 @@ export async function deleteEvent(
   deleteFuture: boolean = false,
   fromDate?: Date
 ): Promise<void> {
-  if (typeof window !== "undefined" && localStorage.getItem("is_guest") === "true") {
+  if (userId === "guest") {
     throw new Error("Guest mode is read-only: cannot delete events.");
   }
   const params = new URLSearchParams({ user_id: userId });
