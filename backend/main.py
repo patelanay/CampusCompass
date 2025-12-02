@@ -12,6 +12,7 @@ from calendar_manager import CalendarManager
 from db_helpers import createMongoClient, loadEnvVariables
 from campus_calendar import InMemoryCalendarManager
 from taskbar import Taskbar
+from uf_schedule import building_code_to_url
 from pymongo import MongoClient
 
 # Load environment variables
@@ -554,6 +555,23 @@ async def complete_task(task_id: str, user_id: str = Query(..., description="Use
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error completing task: {str(e)}")
+
+# ============================================================================
+# Campus Map Endpoint
+# ============================================================================
+
+@app.get("/api/campus-map")
+async def get_campus_map():
+    """Get the main UF campus map URL."""
+    return {"map_url": "https://campusmap.ufl.edu/"}
+
+@app.get("/api/campus-map/building/{building_code}")
+async def get_building_map(building_code: str):
+    """Get the campus map URL for a specific building code."""
+    building_code_upper = building_code.upper()
+    if building_code_upper not in building_code_to_url:
+        raise HTTPException(status_code=404, detail=f"Building code '{building_code}' not found")
+    return {"map_url": building_code_to_url[building_code_upper]}
 
 if __name__ == "__main__":
     uvicorn.run(app, host = "0.0.0.0", port = 8000)
