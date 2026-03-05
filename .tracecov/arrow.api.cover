@@ -1,0 +1,121 @@
+    1: """
+       Provides the default implementation of :class:`ArrowFactory <arrow.factory.ArrowFactory>`
+       methods for use as a module API.
+       
+       """
+       
+    1: from datetime import date, datetime
+    1: from datetime import tzinfo as dt_tzinfo
+    1: from time import struct_time
+    1: from typing import Any, List, Optional, Tuple, Type, Union, overload
+       
+    1: from arrow.arrow import TZ_EXPR, Arrow
+    1: from arrow.constants import DEFAULT_LOCALE
+    1: from arrow.factory import ArrowFactory
+       
+       # internal default factory.
+    1: _factory = ArrowFactory()
+       
+       # TODO: Use Positional Only Argument (https://www.python.org/dev/peps/pep-0570/)
+       #  after Python 3.7 deprecation
+       
+       
+    2: @overload
+    5: def get(
+           *,
+    1:     locale: str = DEFAULT_LOCALE,
+    1:     tzinfo: Optional[TZ_EXPR] = None,
+    1:     normalize_whitespace: bool = False,
+       ) -> Arrow: ...  # pragma: no cover
+       
+       
+    2: @overload
+    5: def get(
+           *args: int,
+    1:     locale: str = DEFAULT_LOCALE,
+    1:     tzinfo: Optional[TZ_EXPR] = None,
+    1:     normalize_whitespace: bool = False,
+       ) -> Arrow: ...  # pragma: no cover
+       
+       
+    2: @overload
+    5: def get(
+           __obj: Union[
+               Arrow,
+               datetime,
+               date,
+               struct_time,
+               dt_tzinfo,
+               int,
+               float,
+               str,
+               Tuple[int, int, int],
+           ],
+           *,
+    1:     locale: str = DEFAULT_LOCALE,
+    1:     tzinfo: Optional[TZ_EXPR] = None,
+    1:     normalize_whitespace: bool = False,
+       ) -> Arrow: ...  # pragma: no cover
+       
+       
+    2: @overload
+    5: def get(
+           __arg1: Union[datetime, date],
+           __arg2: TZ_EXPR,
+           *,
+    1:     locale: str = DEFAULT_LOCALE,
+    1:     tzinfo: Optional[TZ_EXPR] = None,
+    1:     normalize_whitespace: bool = False,
+       ) -> Arrow: ...  # pragma: no cover
+       
+       
+    2: @overload
+    5: def get(
+           __arg1: str,
+           __arg2: Union[str, List[str]],
+           *,
+    1:     locale: str = DEFAULT_LOCALE,
+    1:     tzinfo: Optional[TZ_EXPR] = None,
+    1:     normalize_whitespace: bool = False,
+       ) -> Arrow: ...  # pragma: no cover
+       
+       
+    1: def get(*args: Any, **kwargs: Any) -> Arrow:
+           """Calls the default :class:`ArrowFactory <arrow.factory.ArrowFactory>` ``get`` method."""
+       
+    6:     return _factory.get(*args, **kwargs)
+       
+       
+    1: get.__doc__ = _factory.get.__doc__
+       
+       
+    1: def utcnow() -> Arrow:
+           """Calls the default :class:`ArrowFactory <arrow.factory.ArrowFactory>` ``utcnow`` method."""
+       
+    1:     return _factory.utcnow()
+       
+       
+    1: utcnow.__doc__ = _factory.utcnow.__doc__
+       
+       
+    1: def now(tz: Optional[TZ_EXPR] = None) -> Arrow:
+           """Calls the default :class:`ArrowFactory <arrow.factory.ArrowFactory>` ``now`` method."""
+       
+           return _factory.now(tz)
+       
+       
+    1: now.__doc__ = _factory.now.__doc__
+       
+       
+    1: def factory(type: Type[Arrow]) -> ArrowFactory:
+           """Returns an :class:`.ArrowFactory` for the specified :class:`Arrow <arrow.arrow.Arrow>`
+           or derived type.
+       
+           :param type: the type, :class:`Arrow <arrow.arrow.Arrow>` or derived.
+       
+           """
+       
+           return ArrowFactory(type)
+       
+       
+    1: __all__ = ["get", "utcnow", "now", "factory"]

@@ -1,0 +1,287 @@
+    1: import unittest
+    1: from datetime import datetime, timedelta, timezone
+    1: from unittest.mock import patch
+       
+    1: from fastapi import HTTPException
+       
+    1: from backend import main
+       
+       
+    1: def _event_payload(**overrides):
+    6:     payload = {
+    6:         "user_id": "user-1",
+    6:         "title": "Lecture",
+    6:         "start_time": "2026-03-05T09:00:00Z",
+    6:         "end_time": "2026-03-05T10:00:00Z",
+    6:         "event_type": "class",
+    6:         "location": "CSE E220",
+    6:         "description": "Lecture description",
+    6:         "color": "#2E6FEA",
+    6:         "recurrence": "none",
+    6:         "reminders": [15, 60],
+           }
+    6:     payload.update(overrides)
+    6:     return payload
+       
+       
+    1: def _task_payload(**overrides):
+   10:     payload = {
+   10:         "user_id": "user-1",
+   10:         "title": "Do homework",
+   10:         "description": "Problem set",
+   10:         "priority": "medium",
+           }
+   10:     payload.update(overrides)
+   10:     return payload
+       
+       
+    2: class MainApiTests(unittest.IsolatedAsyncioTestCase):
+    1:     async def asyncSetUp(self):
+   22:         main.user_taskbars.clear()
+   22:         main.memory_db["calendars"].clear()
+   22:         main.mongo_client = None
+   22:         main.calendar_manager = main.InMemoryCalendarManager()
+       
+    1:     async def asyncTearDown(self):
+   22:         main.user_taskbars.clear()
+   22:         main.memory_db["calendars"].clear()
+   22:         main.mongo_client = None
+   22:         main.calendar_manager = main.InMemoryCalendarManager()
+       
+    1:     async def test_startup_event_falls_back_to_in_memory_calendar(self):
+    2:         with patch.object(main, "load_env_variables", return_value="mongodb://invalid"):
+    2:             with patch.object(main, "create_mongo_client", side_effect=RuntimeError("no mongo")):
+    1:                 await main.startup_event()
+    1:         self.assertIsInstance(main.calendar_manager, main.InMemoryCalendarManager)
+       
+    1:     async def test_shutdown_event_closes_mongo_client(self):
+    2:         class FakeMongoClient:
+    1:             def __init__(self):
+    1:                 self.closed = False
+       
+    1:             def close(self):
+    1:                 self.closed = True
+       
+    1:         fake_client = FakeMongoClient()
+    1:         main.mongo_client = fake_client
+    1:         await main.shutdown_event()
+    1:         self.assertTrue(fake_client.closed)
+       
+    1:     async def test_calendars_roundtrip(self):
+    1:         created = main.add_calendar(main.Calendar(name="Spring Semester"))
+    1:         fetched = main.get_calendars()
+       
+    1:         self.assertEqual(created.name, "Spring Semester")
+    1:         self.assertEqual(len(fetched["calendars"]), 1)
+    1:         self.assertEqual(fetched["calendars"][0].name, "Spring Semester")
+       
+    1:     async def test_google_auth_success(self):
+    2:         with patch.object(main.id_token, "verify_oauth2_token", return_value={"email": "student@ufl.edu", "name": "UF Student", "sub": "user-123"}):
+    1:             result = await main.google_auth(main.GoogleAuthRequest(token="valid-token"))
+    1:         self.assertEqual(result.user_id, "user-123")
+    1:         self.assertEqual(result.user_email, "student@ufl.edu")
+       
+    1:     async def test_google_auth_invalid_token_returns_401(self):
+    2:         with patch.object(main.id_token, "verify_oauth2_token", side_effect=ValueError("bad token")):
+    2:             with self.assertRaises(HTTPException) as context:
+    1:                 await main.google_auth(main.GoogleAuthRequest(token="invalid-token"))
+    1:         self.assertEqual(context.exception.status_code, 401)
+       
+    1:     async def test_calendar_endpoint_requires_manager(self):
+    1:         original = main.calendar_manager
+    1:         main.calendar_manager = None
+    1:         try:
+    2:             with self.assertRaises(HTTPException) as context:
+    1:                 await main.get_events(user_id="user-1", start=None, end=None)
+    1:             self.assertEqual(context.exception.status_code, 503)
+               finally:
+    1:             main.calendar_manager = original
+       
+    1:     async def test_create_get_update_delete_calendar_event_flow(self):
+    1:         created = await main.create_event(main.EventCreate(**_event_payload()))
+    1:         event_id = created["id"]
+       
+    2:         update = await main.update_event(
+    1:             event_id=event_id,
+    1:             event_data=main.EventUpdate(title="Updated Lecture"),
+    1:             user_id="user-1",
+               )
+    1:         self.assertTrue(update["success"])
+       
+    1:         events = await main.get_events(user_id="user-1", start=None, end=None)
+    1:         self.assertEqual(events[0]["title"], "Updated Lecture")
+       
+    1:         deleted = await main.delete_event(event_id=event_id, user_id="user-1", delete_future=False, from_date=None)
+    1:         self.assertTrue(deleted["success"])
+       
+    1:     async def test_create_event_rejects_invalid_time_range(self):
+    1:         payload = _event_payload(start_time="2026-03-05T11:00:00Z", end_time="2026-03-05T10:00:00Z")
+    2:         with self.assertRaises(HTTPException) as context:
+    1:             await main.create_event(main.EventCreate(**payload))
+    1:         self.assertEqual(context.exception.status_code, 422)
+       
+    1:     async def test_create_event_rejects_invalid_recurrence_window(self):
+    1:         payload = _event_payload(recurrence="weekly", recurrence_end_date="2026-03-04T09:00:00Z")
+    2:         with self.assertRaises(HTTPException) as context:
+    1:             await main.create_event(main.EventCreate(**payload))
+    1:         self.assertEqual(context.exception.status_code, 422)
+       
+    1:     async def test_update_event_requires_fields(self):
+    1:         created = await main.create_event(main.EventCreate(**_event_payload()))
+    2:         with self.assertRaises(HTTPException) as context:
+    1:             await main.update_event(event_id=created["id"], event_data=main.EventUpdate(), user_id="user-1")
+    1:         self.assertEqual(context.exception.status_code, 400)
+       
+    1:     async def test_delete_event_not_found_returns_404(self):
+    2:         with self.assertRaises(HTTPException) as context:
+    1:             await main.delete_event(event_id="missing-id", user_id="user-1", delete_future=False, from_date=None)
+    1:         self.assertEqual(context.exception.status_code, 404)
+       
+    1:     async def test_free_slots_rejects_invalid_window(self):
+    2:         with self.assertRaises(HTTPException) as context:
+    2:             await main.get_free_slots(
+    1:                 user_id="user-1",
+    1:                 start="2026-03-05T10:00:00Z",
+    1:                 end="2026-03-05T10:00:00Z",
+    1:                 min_duration=30,
+                   )
+    1:         self.assertEqual(context.exception.status_code, 422)
+       
+    1:     async def test_statistics_returns_counts(self):
+    1:         await main.create_event(main.EventCreate(**_event_payload(event_type="class")))
+    2:         await main.create_event(
+    2:             main.EventCreate(
+    2:                 **_event_payload(
+    1:                     event_type="exam",
+    1:                     start_time="2026-03-05T11:00:00Z",
+    1:                     end_time="2026-03-05T12:00:00Z",
+                       )
+                   )
+               )
+       
+    2:         response = await main.get_statistics(
+    1:             user_id="user-1",
+    1:             start="2026-03-05T00:00:00Z",
+    1:             end="2026-03-06T00:00:00Z",
+               )
+       
+    1:         self.assertTrue(response["success"])
+    1:         self.assertEqual(response["statistics"]["class"], 1)
+    1:         self.assertEqual(response["statistics"]["exam"], 1)
+       
+    1:     async def test_create_task_rejects_blank_title_after_trim(self):
+    2:         with self.assertRaises(HTTPException) as context:
+    1:             await main.create_task(main.TaskCreate(**_task_payload(title="   ")))
+    1:         self.assertEqual(context.exception.status_code, 422)
+       
+    1:     async def test_create_task_get_tasks_filter_sort_and_complete(self):
+    1:         low = await main.create_task(main.TaskCreate(**_task_payload(title="Low task", priority="low")))
+    1:         await main.create_task(main.TaskCreate(**_task_payload(title="Medium task", priority="medium")))
+    1:         high = await main.create_task(main.TaskCreate(**_task_payload(title="High task", priority="high")))
+       
+    2:         sorted_tasks = await main.get_tasks(
+    1:             user_id="user-1",
+    1:             status="all",
+    1:             priority=None,
+    1:             sort_by="priority",
+    1:             sort_order="desc",
+    1:             limit=100,
+    1:             offset=0,
+               )
+    1:         self.assertEqual(sorted_tasks[0].title, "High task")
+       
+    1:         completed = await main.complete_task(task_id=high.id, user_id="user-1")
+    1:         self.assertTrue(completed.completed)
+       
+    2:         pending_tasks = await main.get_tasks(
+    1:             user_id="user-1",
+    1:             status="pending",
+    1:             priority=None,
+    1:             sort_by="priority",
+    1:             sort_order="desc",
+    1:             limit=100,
+    1:             offset=0,
+               )
+    2:         completed_tasks = await main.get_tasks(
+    1:             user_id="user-1",
+    1:             status="completed",
+    1:             priority=None,
+    1:             sort_by="priority",
+    1:             sort_order="desc",
+    1:             limit=100,
+    1:             offset=0,
+               )
+       
+    6:         self.assertTrue(all(task.completed is False for task in pending_tasks))
+    4:         self.assertTrue(all(task.completed is True for task in completed_tasks))
+    1:         self.assertEqual(low.priority.value, "low")
+       
+    1:     async def test_get_tasks_due_date_sort_and_pagination(self):
+    1:         base = datetime(2026, 3, 5, 8, 0, tzinfo=timezone.utc)
+    1:         await main.create_task(main.TaskCreate(**_task_payload(title="Task 1", due_date=(base + timedelta(days=3)).isoformat())))
+    1:         await main.create_task(main.TaskCreate(**_task_payload(title="Task 2", due_date=(base + timedelta(days=1)).isoformat())))
+    1:         await main.create_task(main.TaskCreate(**_task_payload(title="Task 3")))
+       
+    2:         tasks = await main.get_tasks(
+    1:             user_id="user-1",
+    1:             status="all",
+    1:             priority=None,
+    1:             sort_by="due_date",
+    1:             sort_order="asc",
+    1:             limit=2,
+    1:             offset=0,
+               )
+       
+    1:         self.assertEqual(len(tasks), 2)
+    1:         self.assertEqual(tasks[0].title, "Task 2")
+    1:         self.assertEqual(tasks[1].title, "Task 1")
+       
+    1:     async def test_update_task_not_found_returns_404(self):
+    2:         with self.assertRaises(HTTPException) as context:
+    1:             await main.update_task(task_id="missing", user_id="user-1", task_data=main.TaskUpdate(title="Updated"))
+    1:         self.assertEqual(context.exception.status_code, 404)
+       
+    1:     async def test_update_task_rejects_blank_trimmed_title(self):
+    1:         created = await main.create_task(main.TaskCreate(**_task_payload(title="Original")))
+    2:         with self.assertRaises(HTTPException) as context:
+    1:             await main.update_task(task_id=created.id, user_id="user-1", task_data=main.TaskUpdate(title="    "))
+    1:         self.assertEqual(context.exception.status_code, 422)
+       
+    1:     async def test_update_and_delete_task_flow(self):
+    1:         created = await main.create_task(main.TaskCreate(**_task_payload(title="Task to update")))
+    2:         updated = await main.update_task(
+    1:             task_id=created.id,
+    1:             user_id="user-1",
+    1:             task_data=main.TaskUpdate(title="Updated Task", priority="high", completed=True),
+               )
+    1:         self.assertEqual(updated.title, "Updated Task")
+    1:         self.assertEqual(updated.priority.value, "high")
+    1:         self.assertTrue(updated.completed)
+       
+    1:         deleted = await main.delete_task(task_id=created.id, user_id="user-1")
+    1:         self.assertTrue(deleted["success"])
+       
+    1:     async def test_health_endpoint_returns_in_memory_counts(self):
+    1:         await main.create_task(main.TaskCreate(**_task_payload(title="Health check task")))
+    1:         payload = await main.health_check()
+       
+    1:         self.assertEqual(payload.status, "ok")
+    1:         self.assertEqual(payload.calendar_backend, "in_memory")
+    1:         self.assertEqual(payload.users_with_taskbars, 1)
+    1:         self.assertEqual(payload.total_in_memory_tasks, 1)
+       
+    1:     async def test_campus_map_endpoints(self):
+    1:         root = await main.get_campus_map()
+    1:         building = await main.get_building_map("cse")
+       
+    1:         self.assertEqual(root["map_url"], "https://campusmap.ufl.edu/")
+    1:         self.assertIn("index/0042", building["map_url"])
+       
+    1:     async def test_campus_map_building_not_found(self):
+    2:         with self.assertRaises(HTTPException) as context:
+    1:             await main.get_building_map("zzz")
+    1:         self.assertEqual(context.exception.status_code, 404)
+       
+       
+    1: if __name__ == "__main__":
+           unittest.main()

@@ -1,0 +1,52 @@
+    1: from __future__ import annotations
+       
+    1: import logging
+    1: from collections.abc import Callable, Iterator
+    1: from pathlib import Path
+    1: from socket import socket
+       
+    1: from uvicorn.config import Config
+    1: from uvicorn.supervisors.basereload import BaseReload
+       
+    1: logger = logging.getLogger("uvicorn.error")
+       
+       
+    2: class StatReload(BaseReload):
+    1:     def __init__(
+               self,
+               config: Config,
+               target: Callable[[list[socket] | None], None],
+               sockets: list[socket],
+           ) -> None:
+               super().__init__(config, target, sockets)
+               self.reloader_name = "StatReload"
+               self.mtimes: dict[Path, float] = {}
+       
+               if config.reload_excludes or config.reload_includes:
+                   logger.warning("--reload-include and --reload-exclude have no effect unless watchfiles is installed.")
+       
+    1:     def should_restart(self) -> list[Path] | None:
+               self.pause()
+       
+               for file in self.iter_py_files():
+                   try:
+                       mtime = file.stat().st_mtime
+                   except OSError:  # pragma: nocover
+                       continue
+       
+                   old_time = self.mtimes.get(file)
+                   if old_time is None:
+                       self.mtimes[file] = mtime
+                       continue
+                   elif mtime > old_time:
+                       return [file]
+               return None
+       
+    1:     def restart(self) -> None:
+               self.mtimes = {}
+               return super().restart()
+       
+    1:     def iter_py_files(self) -> Iterator[Path]:
+               for reload_dir in self.config.reload_dirs:
+                   for path in list(reload_dir.rglob("*.py")):
+                       yield path.resolve()

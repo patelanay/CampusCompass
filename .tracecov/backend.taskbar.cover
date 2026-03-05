@@ -1,0 +1,134 @@
+    1: """
+       Taskbar Module for CampusCompass Backend
+       
+       This module provides a fully functional taskbar system with the following features:
+       - Add a task
+       - Edit a task
+       - Change the priority of a task
+       - Remove a task
+       - List all tasks
+       - Mark a task as completed
+       
+       Architecture:
+         - Task: Data class for individual tasks
+         - Taskbar: In-memory task management logic
+       
+       Usage:
+         taskbar = Taskbar()
+         task_id = taskbar.add_task(task_data)
+         taskbar.edit_task(task_id, updated_data)
+         taskbar.list_tasks()
+       """
+       
+    1: from datetime import datetime, timezone
+    1: from typing import List, Dict, Optional, Any
+    1: from dataclasses import dataclass, field
+    1: from uuid import uuid4
+       
+       # ============================================================================
+       # Data Classes
+       # ============================================================================
+       
+   12: @dataclass
+    2: class Task:
+    1:     """
+           Represents a task in the taskbar.
+       
+           Attributes:
+               title: Task name
+               id: Unique task identifier
+               description: Additional details (optional)
+               priority: Priority level (low, medium, high)
+               due_date: When the task is due (optional)
+               completed: Whether the task is completed
+               created_at: When the task was created
+           """
+    1:     title: str
+   19:     id: str = field(default_factory=lambda: str(uuid4()))
+    2:     description: Optional[str] = None
+    2:     priority: str = "medium"  # Default priority
+    2:     due_date: Optional[datetime] = None
+    2:     completed: bool = False
+   19:     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+       
+    1:     def to_dict(self) -> Dict[str, Any]:
+               """Convert task to dictionary for JSON/DB storage."""
+   16:         return {
+   16:             'id': self.id,
+   16:             'title': self.title,
+   16:             'description': self.description,
+   16:             'priority': self.priority,
+   16:             'due_date': self.due_date.isoformat() if self.due_date else None,
+   16:             'completed': self.completed,
+   16:             'created_at': self.created_at.isoformat()
+               }
+       
+       # ============================================================================
+       # Taskbar Logic (In-Memory)
+       # ============================================================================
+       
+    2: class Taskbar:
+    1:     """
+           In-memory taskbar for managing tasks.
+       
+           Features:
+           - Add, edit, remove tasks
+           - Change task priority
+           - Mark tasks as completed
+           - List all tasks
+           """
+       
+    1:     def __init__(self):
+               """Initialize the taskbar."""
+   13:         self.tasks: Dict[str, Task] = {}
+       
+    1:     def add_task(self, title: str, description: Optional[str] = None, priority: str = "medium", due_date: Optional[datetime] = None) -> str:
+               """Add a new task to the taskbar."""
+   15:         task = Task(title=title, description=description, priority=priority, due_date=due_date)
+   15:         self.tasks[task.id] = task
+   15:         return task.id
+       
+    1:     def edit_task(self, task_id: str, updated_data: Dict[str, Any]) -> bool:
+               """Edit an existing task."""
+    3:         task = self.tasks.get(task_id)
+    3:         if not task:
+    1:             return False
+       
+    2:         if 'title' in updated_data:
+    2:             task.title = updated_data['title']
+    2:         if 'description' in updated_data:
+                   task.description = updated_data['description']
+    2:         if 'priority' in updated_data:
+    2:             task.priority = updated_data['priority']
+    2:         if 'due_date' in updated_data:
+                   task.due_date = updated_data['due_date']
+    2:         if 'completed' in updated_data:
+    1:             task.completed = updated_data['completed']
+       
+    2:         return True
+       
+    1:     def remove_task(self, task_id: str) -> bool:
+               """Remove a task from the taskbar."""
+    3:         if task_id in self.tasks:
+    2:             del self.tasks[task_id]
+    2:             return True
+    1:         return False
+       
+    1:     def list_tasks(self) -> List[Dict]:
+               """List all tasks in the taskbar."""
+   19:         return [task.to_dict() for task in self.tasks.values()]
+       
+    1:     def mark_task_completed(self, task_id: str) -> bool:
+               """Mark a task as completed."""
+    3:         task = self.tasks.get(task_id)
+    3:         if not task:
+    1:             return False
+    2:         task.completed = True
+    2:         return True
+       
+       # Example usage:
+       # taskbar = Taskbar()
+       # task_id = taskbar.add_task("Finish project", "Complete the backend module", "high", datetime(2025, 12, 10))
+       # taskbar.edit_task(task_id, {"priority": "medium"})
+       # taskbar.mark_task_completed(task_id)
+       # print(taskbar.list_tasks())

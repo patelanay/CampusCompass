@@ -1,0 +1,21 @@
+    1: from __future__ import annotations
+       
+    1: from ._config import __toolname__, __version__
+    1: from .tool import (  # pylint: disable=W0622
+           compile,
+           main,
+           parse,
+           to_python_model,
+           to_python_sourcecode,
+       )
+       
+    1: assert __version__
+    1: assert __toolname__
+    1: assert bool(compile)
+    1: assert bool(parse)
+    1: assert bool(to_python_sourcecode)
+    1: assert bool(to_python_model)
+       
+       
+    1: if __name__ == '__main__':
+           main()

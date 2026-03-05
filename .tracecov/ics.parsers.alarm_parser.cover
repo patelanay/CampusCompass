@@ -1,0 +1,65 @@
+    1: import warnings
+       
+    1: from ics.attendee import Attendee
+    1: from ics.parsers.parser import Parser, option
+    1: from ics.utils import iso_to_arrow, parse_duration, unescape_string
+       
+       
+    2: class BaseAlarmParser(Parser):
+    2:     @option(required=True)
+    2:     def parse_trigger(alarm, line):
+               if line.params.get("VALUE", [""])[0] == "DATE-TIME":
+                   alarm.trigger = iso_to_arrow(line)
+               elif line.params.get("VALUE", ["DURATION"])[0] == "DURATION":
+                   alarm.trigger = parse_duration(line.value)
+               else:
+                   warnings.warn(
+                       "ics.py encountered a TRIGGER of unknown type '%s'. It has been ignored."
+                       % line.params["VALUE"][0]
+                   )
+       
+    1:     def parse_duration(alarm, line):
+               if line:
+                   alarm._duration = parse_duration(line.value)
+       
+    1:     def parse_repeat(alarm, line):
+               if line:
+                   alarm._repeat = int(line.value)
+       
+       
+    2: class CustomAlarmParser(BaseAlarmParser):
+    1:     def parse_action(alarm, line, required=True):
+               print(line)
+               if line:
+                   alarm._action = line.value
+       
+       
+    2: class AudioAlarmParser(BaseAlarmParser):
+    1:     def parse_attach(alarm, line):
+               if line:
+                   alarm._sound = line
+       
+       
+    2: class DisplayAlarmParser(BaseAlarmParser):
+    2:     @option(required=True)
+    2:     def parse_description(alarm, line):
+               alarm.display_text = unescape_string(line.value) if line else None
+       
+       
+    2: class EmailAlarmParser(BaseAlarmParser):
+    2:     @option(required=True)
+    2:     def parse_description(alarm, line):
+               alarm.body = unescape_string(line.value) if line else None
+       
+    2:     @option(required=True)
+    2:     def parse_summary(alarm, line):
+               alarm.subject = unescape_string(line.value) if line else None
+       
+    2:     @option(required=True, multiple=True)
+    2:     def parse_attendee(alarm, lines):
+               for line in lines:
+                   alarm.recipients.append(Attendee.parse(line))
+       
+       
+    2: class NoneAlarmParser(BaseAlarmParser):
+    1:     pass

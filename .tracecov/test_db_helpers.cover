@@ -1,0 +1,81 @@
+    1: import os
+    1: import unittest
+    1: from unittest.mock import patch
+       
+    1: from backend import db_helpers
+       
+       
+    2: class DBHelpersTests(unittest.TestCase):
+    1:     def test_load_env_variables_returns_mongodb_uri(self):
+    2:         with patch.object(db_helpers, "load_dotenv") as mocked_load_dotenv:
+    2:             with patch.dict(os.environ, {"MONGODB_URI": "mongodb://example"}, clear=False):
+    1:                 uri = db_helpers.load_env_variables()
+       
+    1:         mocked_load_dotenv.assert_called_once()
+    1:         self.assertEqual(uri, "mongodb://example")
+       
+    1:     def test_create_mongo_client_raises_for_missing_uri(self):
+    2:         with self.assertRaises(ValueError):
+    1:             db_helpers.create_mongo_client("")
+       
+    1:     def test_create_mongo_client_successfully_pings(self):
+    2:         class FakeAdmin:
+    1:             def __init__(self):
+    1:                 self.pinged = False
+       
+    1:             def command(self, name):
+    1:                 self.pinged = name == "ping"
+       
+    2:         class FakeClient:
+    1:             def __init__(self, uri, server_api):
+    1:                 self.uri = uri
+    1:                 self.server_api = server_api
+    1:                 self.admin = FakeAdmin()
+    1:                 self.closed = False
+       
+    1:             def close(self):
+                       self.closed = True
+       
+    2:         with patch.object(db_helpers, "MongoClient", FakeClient):
+    3:             with patch.object(db_helpers, "ServerApi", lambda version: f"server-api-{version}"):
+    1:                 client = db_helpers.create_mongo_client("mongodb://unit-test")
+       
+    1:         self.assertEqual(client.uri, "mongodb://unit-test")
+    1:         self.assertEqual(client.server_api, "server-api-1")
+    1:         self.assertTrue(client.admin.pinged)
+    1:         self.assertFalse(client.closed)
+       
+    1:     def test_create_mongo_client_closes_on_ping_failure(self):
+    2:         class FakeAdmin:
+    1:             def command(self, _name):
+    1:                 raise RuntimeError("ping failed")
+       
+    2:         class FakeClient:
+    1:             def __init__(self, _uri, _server_api):
+    1:                 self.admin = FakeAdmin()
+    1:                 self.closed = False
+       
+    1:             def close(self):
+    1:                 self.closed = True
+       
+    1:         holder = {}
+       
+    1:         def fake_client(uri, server_api):
+    1:             client = FakeClient(uri, server_api)
+    1:             holder["client"] = client
+    1:             return client
+       
+    2:         with patch.object(db_helpers, "MongoClient", fake_client):
+    3:             with patch.object(db_helpers, "ServerApi", lambda version: version):
+    2:                 with self.assertRaises(RuntimeError):
+    1:                     db_helpers.create_mongo_client("mongodb://unit-test")
+       
+    1:         self.assertTrue(holder["client"].closed)
+       
+    1:     def test_backward_compatible_aliases_are_available(self):
+    1:         self.assertIs(db_helpers.loadEnvVariables, db_helpers.load_env_variables)
+    1:         self.assertIs(db_helpers.createMongoClient, db_helpers.create_mongo_client)
+       
+       
+    1: if __name__ == "__main__":
+           unittest.main()

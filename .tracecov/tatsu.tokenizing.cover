@@ -1,0 +1,72 @@
+    1: from .exceptions import ParseError
+    1: from .util._common import _prints
+       
+       
+    2: class Tokenizer:
+    1:     def __init__(self, *args, **kwargs):
+   30:         super().__init__()
+       
+    1:     def error(self, *args, **kwargs):
+               raise ParseError(_prints(*args, **kwargs))
+       
+    2:     @property
+    2:     def filename(self):
+               raise NotImplementedError
+       
+    2:     @property
+    2:     def ignorecase(self):
+               raise NotImplementedError
+       
+    2:     @property
+    2:     def pos(self):
+               raise NotImplementedError
+       
+    1:     def goto(self, pos):
+               raise NotImplementedError
+       
+    1:     def atend(self):
+               raise NotImplementedError
+       
+    1:     def ateol(self):
+               raise NotImplementedError
+       
+    2:     @property
+    2:     def current(self):
+               raise NotImplementedError
+       
+    2:     @property
+    2:     def token(self):
+               return self.current
+       
+    1:     def next(self):
+               raise NotImplementedError
+       
+    1:     def next_token(self):
+               raise NotImplementedError
+       
+    1:     def match(self, token):
+               raise NotImplementedError
+       
+    1:     def matchre(self, pattern):
+               raise NotImplementedError
+       
+    1:     def posline(self, pos):
+               raise NotImplementedError
+       
+    1:     def line_info(self, pos=None):
+               raise NotImplementedError
+       
+    1:     def get_lines(self, start=None, end=None):
+               raise NotImplementedError
+       
+    1:     def line_index(self, start=0, end=None):
+               raise NotImplementedError
+       
+    1:     def lookahead(self):
+               raise NotImplementedError
+       
+    1:     def lookahead_pos(self):
+               if self.atend():
+                   return ''
+               info = self.line_info()
+               return '~%d:%d' % (info.line + 1, info.col + 1)

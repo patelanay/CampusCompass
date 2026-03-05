@@ -1,0 +1,98 @@
+    1: import re
+       
+    1: from ics import Organizer, Attendee
+    1: from ics.alarm.utils import get_type_from_container
+    1: from ics.parsers.parser import Parser, option
+    1: from ics.utils import (iso_precision, iso_to_arrow, parse_duration,
+                              unescape_string)
+       
+       
+    2: class EventParser(Parser):
+    1:     def parse_dtstamp(event, line):
+    3:         if line:
+                   # get the dict of vtimezones passed to the classmethod
+                   tz_dict = event._classmethod_kwargs["tz"]
+                   event.created = iso_to_arrow(line, tz_dict)
+       
+    1:     def parse_last_modified(event, line):
+    3:         if line:
+                   tz_dict = event._classmethod_kwargs["tz"]
+                   event.last_modified = iso_to_arrow(line, tz_dict)
+       
+    1:     def parse_dtstart(event, line):
+    3:         if line:
+                   # get the dict of vtimezones passed to the classmethod
+    3:             tz_dict = event._classmethod_kwargs["tz"]
+    3:             event.begin = iso_to_arrow(line, tz_dict)
+    3:             event._begin_precision = iso_precision(line.value)
+       
+    1:     def parse_duration(event, line):
+    3:         if line:
+                   # TODO: DRY [1]
+                   if event._end_time:  # pragma: no cover
+                       raise ValueError("An event can't have both DTEND and DURATION")
+                   event._duration = parse_duration(line.value)
+       
+    1:     def parse_dtend(event, line):
+    3:         if line:
+                   # TODO: DRY [1]
+    3:             if event._duration:
+                       raise ValueError("An event can't have both DTEND and DURATION")
+                   # get the dict of vtimezones passed to the classmethod
+    3:             tz_dict = event._classmethod_kwargs["tz"]
+    3:             event._end_time = iso_to_arrow(line, tz_dict)
+                   # one could also save the end_precision to check that if begin_precision is day, end_precision also is
+       
+    1:     def parse_summary(event, line):
+    3:         event.name = unescape_string(line.value) if line else None
+       
+    1:     def parse_organizer(event, line):
+    3:         event.organizer = Organizer.parse(line) if line else None
+       
+    2:     @option(multiple=True)
+    2:     def parse_attendee(event, lines):
+    3:         for line in lines:
+                   event.attendees.add(Attendee.parse(line))
+       
+    1:     def parse_description(event, line):
+    3:         event.description = unescape_string(line.value) if line else None
+       
+    1:     def parse_location(event, line):
+    3:         event.location = unescape_string(line.value) if line else None
+       
+    1:     def parse_geo(event, line):
+    3:         if line:
+                   latitude, _, longitude = unescape_string(line.value).partition(";")
+                   event.geo = float(latitude), float(longitude)
+       
+    1:     def parse_url(event, line):
+    3:         event.url = unescape_string(line.value) if line else None
+       
+    1:     def parse_transp(event, line):
+    3:         if line and line.value in ["TRANSPARENT", "OPAQUE"]:
+                   event.transparent = line.value == "TRANSPARENT"
+       
+           # TODO : make uid required ?
+           # TODO : add option somewhere to ignore some errors
+    1:     def parse_uid(event, line):
+    3:         if line:
+                   event.uid = line.value
+       
+    2:     @option(multiple=True)
+    2:     def parse_valarm(event, lines):
+    3:         event.alarms = [get_type_from_container(x)._from_container(x) for x in lines]
+       
+    1:     def parse_status(event, line):
+    3:         if line:
+                   event.status = line.value
+       
+    1:     def parse_class(event, line):
+    3:         if line:
+                   event.classification = line.value
+       
+    1:     def parse_categories(event, line):
+    3:         event.categories = set()
+    3:         if line:
+                   # In the regular expression: Only match unquoted commas.
+                   for cat in re.split("(?<!\\\\),", line.value):
+                       event.categories.update({unescape_string(cat)})

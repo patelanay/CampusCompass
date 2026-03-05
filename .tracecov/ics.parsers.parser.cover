@@ -1,0 +1,45 @@
+    1: from typing import Callable, Dict, List, NamedTuple, Optional, Tuple
+       
+    1: from ics.grammar.parse import ContentLine
+       
+       
+    8: class ParserOption(NamedTuple):
+    2:     required: bool = False
+    2:     multiple: bool = False
+    2:     default: Optional[List[ContentLine]] = None
+       
+       
+    2: class Parser:
+    2:     @classmethod
+    2:     def get_parsers(cls) -> Dict[str, Tuple[Callable, ParserOption]]:
+   12:         methods = [
+  258:             (method_name, getattr(cls, method_name))
+  270:             for method_name in dir(cls)
+  258:             if callable(getattr(cls, method_name))
+               ]
+   12:         parsers = [
+  219:             (method_name, method_callable)
+  231:             for (method_name, method_callable) in methods
+  219:             if method_name.startswith("parse_")
+               ]
+   12:         return {
+  150:             method_name.split("_", 1)[1]
+   75:             .upper()
+  150:             .replace("_", "-"): (
+   75:                 method_callable,
+   75:                 getattr(method_callable, "options", ParserOption()),
+                   )
+   87:             for (method_name, method_callable) in parsers
+               }
+       
+       
+    1: def option(
+           required: bool = False,
+           multiple: bool = False,
+           default: Optional[List[ContentLine]] = None,
+       ) -> Callable:
+   15:     def decorator(fn):
+   15:         fn.options = ParserOption(required, multiple, default)
+   15:         return fn
+       
+   15:     return decorator

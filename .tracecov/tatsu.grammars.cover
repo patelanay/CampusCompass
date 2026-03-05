@@ -1,0 +1,1105 @@
+    1: from __future__ import annotations
+       
+    1: import functools
+    1: from collections import defaultdict
+    1: from collections.abc import Mapping
+    1: from copy import copy
+    1: from itertools import takewhile
+    1: from pathlib import Path
+       
+    1: from .ast import AST
+    1: from .contexts import ParseContext
+    1: from .exceptions import FailedRef, GrammarError
+    1: from .infos import RuleInfo
+    1: from .leftrec import Nullable, find_left_recursion
+    1: from .objectmodel import Node
+    1: from .parserconfig import ParserConfig
+    1: from .util import chunks, compress_seq, indent, re, trim
+       
+    1: PEP8_LLEN = 72
+       
+       
+    1: PRAGMA_RE = r'^\s*#include.*$'
+       
+       
+    2: class _ref(str):
+    1:     def __repr__(self):
+               return f'<{self}>'
+       
+       
+    1: def ref(name):
+           return (_ref(name),)
+       
+       
+    1: def kdot(x, y, k):
+           if not y:
+               return {a[:k] for a in x}
+           elif not x:
+               return {b[:k] for b in y}
+           else:
+               return {(a + b)[:k] for a in x for b in y}
+       
+       
+    1: def pythonize_name(name):
+           return ''.join('_' + c.lower() if c.isupper() else c for c in name)
+       
+       
+    2: class ModelContext(ParseContext):
+    1:     def __init__(
+               self,
+               rules,
+               /,
+               start=None,
+               config: ParserConfig | None = None,
+               **settings,
+           ):
+               config = ParserConfig.new(config, **settings)
+               config = config.replace(start=start)
+       
+               super().__init__(config=config)
+       
+               self.rules = {rule.name: rule for rule in rules}
+       
+    2:     @property
+    2:     def pos(self):
+               return self._tokenizer.pos
+       
+    1:     def _find_rule(self, name):
+               return functools.partial(self.rules[name].parse, self)
+       
+       
+    2: class Model(Node):
+    2:     @staticmethod
+    2:     def classes():
+               return [
+                   c
+                   # Copy globals() before iterating to be thread-safe.
+                   for c in globals().copy().values()
+                   if isinstance(c, type) and issubclass(c, Model)
+               ]
+       
+    1:     def __init__(self, ast=None, ctx=None):
+               super().__init__(ast=ast, ctx=ctx)
+               self._lookahead = None
+               self._firstset = None
+               self._follow_set = set()
+               self.value = None
+               self._nullability = self._nullable()
+               if isinstance(self._nullability, int):  # Allow simple boolean values
+                   if self._nullability:
+                       self._nullability = Nullable.yes()
+                   else:
+                       self._nullability = Nullable.no()
+       
+    1:     def parse(self, ctx):
+               ctx.last_node = None
+       
+    1:     def defines(self):
+               return []
+       
+    1:     def _add_defined_attributes(self, ctx, ast=None):
+               if ast is None:
+                   return
+               if not hasattr(ast, '_define'):
+                   return
+       
+               defines = dict(compress_seq(self.defines()))
+       
+               keys = [k for k, list in defines.items() if not list]
+               list_keys = [k for k, list in defines.items() if list]
+               ctx._define(keys, list_keys)
+               ast._define(keys, list_keys)
+       
+    1:     def lookahead(self, k=1):
+               if self._lookahead is None:
+                   self._lookahead = kdot(self.firstset(k), self.followset(k), k)
+               return self._lookahead
+       
+    1:     def lookahead_str(self):
+               return ' '.join(sorted(repr(f[0]) for f in self.lookahead() if f))
+       
+    1:     def firstset(self, k=1):
+               if self._firstset is None:
+                   self._firstset = self._first(k, defaultdict(set))
+               return self._firstset
+       
+    1:     def followset(self, k=1):
+               return self._follow_set
+       
+    1:     def missing_rules(self, rules):
+               return set()
+       
+    1:     def _used_rule_names(self):
+               return set()
+       
+    1:     def _first(self, k, f):
+               return set()
+       
+    1:     def _follow(self, k, fl, a):
+               return a
+       
+    1:     def is_nullable(self, ctx=None):
+               return self._nullability.nullable
+       
+    1:     def _nullable(self):
+               return False
+       
+           # list of rules that can be invoked at the same position
+    1:     def at_same_pos(self, ctx):
+               return []
+       
+    1:     def comments_str(self):
+               comments, _eol = self.comments
+               if not comments:
+                   return ''
+       
+               return '\n'.join(
+                   '(* {} *)\n'.format('\n'.join(c).replace('(*', '').replace('*)', '').strip())
+                   for c in comments
+               )
+       
+    1:     def nodecount(self):
+               return 1
+       
+    1:     def pretty(self):
+               return self._to_str()
+       
+    1:     def pretty_lean(self):
+               return self._to_str(lean=True)
+       
+    1:     def _to_str(self, lean=False):
+               return '%s:%d' % (type(self).__name__, id(self))
+       
+    1:     def __str__(self):
+               return self._to_str()
+       
+       
+    2: class Void(Model):
+    1:     def parse(self, ctx):
+               return ctx._void()
+       
+    1:     def _to_str(self, lean=False):
+               return '()'
+       
+    1:     def _nullable(self):
+               return True
+       
+       
+    2: class Any(Model):
+    1:     def parse(self, ctx):
+               return ctx._any()
+       
+    1:     def _to_str(self, lean=False):
+               return '/./'
+       
+       
+    2: class Fail(Model):
+    1:     def parse(self, ctx):
+               return ctx._fail()
+       
+    1:     def _to_str(self, lean=False):
+               return '!()'
+       
+       
+    2: class Comment(Model):
+    1:     def __init__(self, ast=None, **kwargs):
+               self.comment = None
+               super().__init__(ast=AST(comment=ast))
+       
+    1:     def _to_str(self, lean=False):
+               return f'(* {self.comment} *)'
+       
+       
+    2: class EOLComment(Comment):
+    1:     def _to_str(self, lean=False):
+               return f'  # {self.comment}\n'
+       
+       
+    2: class EOF(Model):
+    1:     def parse(self, ctx):
+               ctx._check_eof()
+       
+    1:     def _to_str(self, lean=False):
+               return '$'
+       
+       
+    2: class Decorator(Model):
+    1:     def __init__(self, ast=None, exp=None, **kwargs):
+               if exp is not None:
+                   self.exp = ast = exp
+               elif not isinstance(ast, AST):
+                   # Patch to avoid bad interactions with attribute setting in Model.
+                   # Also a shortcut for subexpressions that are not ASTs.
+                   ast = AST(exp=ast)
+               super().__init__(ast=ast)
+               assert isinstance(self.exp, Model)
+       
+    1:     def parse(self, ctx):
+               return self.exp.parse(ctx)
+       
+    1:     def defines(self):
+               return self.exp.defines()
+       
+    1:     def missing_rules(self, rules):
+               return self.exp.missing_rules(rules)
+       
+    1:     def _used_rule_names(self):
+               return self.exp._used_rule_names()
+       
+    1:     def _first(self, k, f):
+               return self.exp._first(k, f)
+       
+    1:     def _follow(self, k, fl, a):
+               return self.exp._follow(k, fl, a)
+       
+    1:     def nodecount(self):
+               return 1 + self.exp.nodecount()
+       
+    1:     def _to_str(self, lean=False):
+               return self.exp._to_str(lean=lean)
+       
+    1:     def _nullable(self):
+               return Nullable.of(self.exp)
+       
+    1:     def at_same_pos(self, ctx):
+               return [self.exp]
+       
+       
+       # NOTE: backwards compatibility
+    1: _Decorator = Decorator
+       
+       
+    2: class Group(Decorator):
+    1:     def parse(self, ctx):
+               with ctx._group():
+                   self.exp.parse(ctx)
+                   return ctx.last_node
+       
+    1:     def _to_str(self, lean=False):
+               exp = self.exp._to_str(lean=lean)
+               if len(exp.splitlines()) > 1:
+                   return f'(\n{indent(exp)}\n)'
+               else:
+                   return f'({trim(exp)})'
+       
+       
+    2: class Token(Model):
+    1:     def __post_init__(self):
+               super().__post_init__()
+               ast = self.ast
+               self.token = ast
+       
+    1:     def parse(self, ctx):
+               return ctx._token(self.token)
+       
+    1:     def _first(self, k, f):
+               return {(self.token,)}
+       
+    1:     def _to_str(self, lean=False):
+               return repr(self.token)
+       
+       
+    2: class Constant(Model):
+    1:     def __post_init__(self):
+               super().__post_init__()
+               self.literal = self.ast
+       
+    1:     def parse(self, ctx):
+               return ctx._constant(self.literal)
+       
+    1:     def _first(self, k, f):
+               return {()}
+       
+    1:     def _to_str(self, lean=False):
+               return f'`{self.literal!r}`'
+       
+    1:     def _nullable(self):
+               return True
+       
+       
+    2: class Alert(Constant):
+    1:     def __post_init__(self):
+               super().__post_init__()
+               self.literal = self.ast.message.literal
+               self.level = len(self.ast.level)
+       
+    1:     def parse(self, ctx):
+               return super().parse(ctx)
+       
+    1:     def _to_str(self, lean=False):
+               return f'{"^" * self.level}{super()._to_str()}'
+       
+       
+    2: class Pattern(Model):
+    1:     def __post_init__(self):
+               super().__post_init__()
+               ast = self.ast
+               if not isinstance(ast, list):
+                   ast = [ast]
+               self.patterns = ast
+               self.regex = re.compile(self.pattern)
+       
+    2:     @property
+    2:     def pattern(self):
+               return ''.join(self.patterns)
+       
+    1:     def parse(self, ctx):
+               return ctx._pattern(self.pattern)
+       
+    1:     def _first(self, k, f):
+               x = self
+               if bool(self.regex.match('')):
+                   return {(), (x,)}
+               else:
+                   return {(x,)}
+       
+    1:     def _to_str(self, lean=False):
+               parts = []
+               for pat in (str(p) for p in self.patterns):
+                   if '/' in pat:
+                       newpat = pat.replace('"', r'\"')
+                       regex = f'?"{newpat}"'
+                   else:
+                       regex = f'/{pat}/'
+                   parts.append(regex)
+               return '\n+ '.join(parts)
+       
+    1:     def _nullable(self):
+               return bool(self.regex.match(''))
+       
+    1:     def __repr__(self):
+               return self.pattern.replace('\\\\', '\\')
+       
+       
+    2: class Lookahead(Decorator):
+    1:     def parse(self, ctx):
+               with ctx._if():
+                   return super().parse(ctx)
+       
+    1:     def _to_str(self, lean=False):
+               return '&' + self.exp._to_str(lean=lean)
+       
+    1:     def _nullable(self):
+               return True
+       
+       
+    2: class NegativeLookahead(Decorator):
+    1:     def parse(self, ctx):
+               with ctx._ifnot():
+                   return super().parse(ctx)
+       
+    1:     def _to_str(self, lean=False):
+               return '!' + str(self.exp._to_str(lean=lean))
+       
+    1:     def _nullable(self):
+               return True
+       
+       
+    2: class SkipTo(Decorator):
+    1:     def parse(self, ctx):
+               super_parse = super().parse
+               return ctx._skip_to(lambda: super_parse(ctx))
+       
+    1:     def _first(self, k, f):
+               # use None to represent ANY
+               return {(None,)} | super()._first(k, f)
+       
+    1:     def _to_str(self, lean=False):
+               return '->' + self.exp._to_str(lean=lean)
+       
+       
+    2: class Sequence(Model):
+    1:     def __init__(self, ast, **kwargs):
+               assert ast.sequence
+               self.sequence = ()
+               super().__init__(ast=ast)
+       
+    1:     def parse(self, ctx):
+               ctx.last_node = [s.parse(ctx) for s in self.sequence]
+               return ctx.last_node
+       
+    1:     def defines(self):
+               return [d for s in self.sequence for d in s.defines()]
+       
+    1:     def missing_rules(self, rules):
+               return set().union(*[s.missing_rules(rules) for s in self.sequence])
+       
+    1:     def _used_rule_names(self):
+               return set().union(*[s._used_rule_names() for s in self.sequence])
+       
+    1:     def _first(self, k, f):
+               result = {()}
+               for s in self.sequence:
+                   x = s._first(k, f)
+                   # FIXME:
+                   # if isinstance(x, RuleRef):
+                   #     x |= f[x.name]
+                   result = kdot(result, x, k)
+               self._firstset = result
+               return result
+       
+    1:     def _follow(self, k, fl, a):
+               fs = a
+               for x in reversed(self.sequence):
+                   if isinstance(x, RuleRef):
+                       fl[x.name] |= fs
+                   x._follow(k, fl, fs)
+                   fs = kdot(x.firstset(k=k), fs, k)
+               return a
+       
+    1:     def nodecount(self):
+               return 1 + sum(s.nodecount() for s in self.sequence)
+       
+    1:     def _to_str(self, lean=False):
+               comments = self.comments_str()
+               seq = [str(s._to_str(lean=lean)) for s in self.sequence]
+               single = ' '.join(seq)
+               if len(single) <= PEP8_LLEN and len(single.splitlines()) <= 1:
+                   return comments + single
+               else:
+                   return comments + '\n'.join(seq)
+       
+    1:     def _nullable(self):
+               return Nullable.all(self.sequence)
+       
+    1:     def at_same_pos(self, ctx):
+               head = list(takewhile(lambda c: c.is_nullable(ctx), self.sequence))
+               if len(head) < len(self.sequence):
+                   head.append(self.sequence[len(head)])
+               return head
+       
+       
+    2: class Choice(Model):
+    1:     def __init__(self, ast=None, **kwargs):
+               self.options = []
+               super().__init__(ast=AST(options=ast))
+               assert isinstance(self.options, list), repr(self.options)
+       
+    1:     def parse(self, ctx):
+               with ctx._choice():
+                   for o in self.options:
+                       with ctx._option():
+                           ctx.last_node = o.parse(ctx)
+                           return ctx.last_node
+       
+                   lookahead = self.lookahead_str()
+                   if lookahead:
+                       ctx._error(f'expecting one of: {lookahead}:')
+                   ctx._error('no available options')
+                   return None
+       
+    1:     def defines(self):
+               return [d for o in self.options for d in o.defines()]
+       
+    1:     def missing_rules(self, rules):
+               return set().union(*[o.missing_rules(rules) for o in self.options])
+       
+    1:     def _used_rule_names(self):
+               return set().union(*[o._used_rule_names() for o in self.options])
+       
+    1:     def _first(self, k, f):
+               result = set()
+               for o in self.options:
+                   result |= o._first(k, f)
+               self._firstset = result
+               return result
+       
+    1:     def _follow(self, k, fl, a):
+               for o in self.options:
+                   o._follow(k, fl, a)
+               return a
+       
+    1:     def nodecount(self):
+               return 1 + sum(o.nodecount() for o in self.options)
+       
+    1:     def _to_str(self, lean=False):
+               options = [str(o._to_str(lean=lean)) for o in self.options]
+       
+               multi = any(len(o.splitlines()) > 1 for o in options)
+               single = ' | '.join(o for o in options)
+       
+               if multi:
+                   return '\n|\n'.join(indent(o) for o in options)
+               elif options and len(single) > PEP8_LLEN:
+                   return '| ' + '\n| '.join(o for o in options)
+               else:
+                   return single
+       
+    1:     def _nullable(self):
+               return Nullable.any(self.options)
+       
+    1:     def at_same_pos(self, ctx):
+               return self.options
+       
+       
+    2: class Option(Decorator):
+    1:     def parse(self, ctx):
+               result = super().parse(ctx)
+               self._add_defined_attributes(ctx, result)
+               return result
+       
+       
+    2: class Closure(Decorator):
+    1:     def parse(self, ctx):
+               return ctx._closure(lambda: self.exp.parse(ctx))
+       
+    1:     def _first(self, k, f):
+               efirst = self.exp._first(k, f)
+               result = {()}
+               for _i in range(k):
+                   result = kdot(result, efirst, k)
+               return set({()}) | result
+       
+    1:     def _to_str(self, lean=False):
+               sexp = str(self.exp._to_str(lean=lean))
+               if len(sexp.splitlines()) <= 1:
+                   return f'{{{sexp}}}'
+               else:
+                   return f'{{\n{indent(sexp)}\n}}'
+       
+    1:     def _nullable(self):
+               return True
+       
+       
+    2: class PositiveClosure(Closure):
+    1:     def parse(self, ctx):
+               return ctx._positive_closure(lambda: self.exp.parse(ctx))
+       
+    1:     def _first(self, k, f):
+               efirst = self.exp._first(k, f)
+               result = {()}
+               for _i in range(k):
+                   result = kdot(result, efirst, k)
+               return result
+       
+    1:     def _to_str(self, lean=False):
+               return super()._to_str(lean=lean) + '+'
+       
+    1:     def _nullable(self):
+               return Nullable.of(self.exp)
+       
+       
+    2: class Join(Decorator):
+    1:     JOINOP = '%'
+       
+    1:     def __init__(self, ast=None, **kwargs):
+               super().__init__(ast.exp)
+               self.sep = ast.sep
+       
+    1:     def parse(self, ctx):
+               def sep():
+                   return self.sep.parse(ctx)
+       
+               def exp():
+                   return self.exp.parse(ctx)
+       
+               return self._do_parse(ctx, exp, sep)
+       
+    1:     def _do_parse(self, ctx, exp, sep):
+               return ctx._join(exp, sep)
+       
+    1:     def _to_str(self, lean=False):
+               ssep = self.sep._to_str(lean=lean)
+               sexp = str(self.exp._to_str(lean=lean))
+               if len(sexp.splitlines()) <= 1:
+                   return f'{ssep}{self.JOINOP}{{{sexp}}}'
+               else:
+                   return f'{ssep}{self.JOINOP}{{\n{sexp}\n}}'
+       
+    1:     def _nullable(self):
+               return True
+       
+       
+    2: class PositiveJoin(Join):
+    1:     def _do_parse(self, ctx, exp, sep):
+               return ctx._positive_join(exp, sep)
+       
+    1:     def _to_str(self, lean=False):
+               return super()._to_str(lean=lean) + '+'
+       
+    1:     def _nullable(self):
+               return Nullable.of(self.exp)
+       
+       
+    2: class LeftJoin(PositiveJoin):
+    1:     JOINOP = '<'
+       
+    1:     def _do_parse(self, ctx, exp, sep):
+               return ctx._left_join(exp, sep)
+       
+       
+    2: class RightJoin(PositiveJoin):
+    1:     JOINOP = '>'
+       
+    1:     def _do_parse(self, ctx, exp, sep):
+               return ctx._right_join(exp, sep)
+       
+       
+    2: class Gather(Join):
+    1:     JOINOP = '.'
+       
+    1:     def _do_parse(self, ctx, exp, sep):
+               return ctx._gather(exp, sep)
+       
+       
+    2: class PositiveGather(Gather):
+    1:     def _do_parse(self, ctx, exp, sep):
+               return ctx._positive_gather(exp, sep)
+       
+    1:     def _to_str(self, lean=False):
+               return super()._to_str(lean=lean) + '+'
+       
+    1:     def _nullable(self):
+               return Nullable.of(self.exp)
+       
+       
+    2: class EmptyClosure(Model):
+    1:     def parse(self, ctx):
+               return ctx._empty_closure()
+       
+    1:     def _first(self, k, f):
+               return {()}
+       
+    1:     def _to_str(self, lean=False):
+               return '{}'
+       
+    1:     def _nullable(self):
+               return True
+       
+       
+    2: class Optional(Decorator):
+    1:     def parse(self, ctx):
+               ctx.last_node = None
+               self._add_defined_attributes(ctx, ctx.ast)
+               with ctx._optional():
+                   return self.exp.parse(ctx)
+       
+    1:     def _first(self, k, f):
+               return set({()}) | self.exp._first(k, f)
+       
+    1:     def _to_str(self, lean=False):
+               exp = str(self.exp._to_str(lean=lean))
+               template = '[%s]'
+               if isinstance(self.exp, Choice):
+                   template = trim(self.str_template)
+               elif isinstance(self.exp, Group):
+                   exp = self.exp.exp
+               return template % exp
+       
+    1:     str_template = """
+                   [
+                   %s
+                   ]
+                   """
+       
+    1:     def _nullable(self):
+               return True
+       
+       
+    2: class Cut(Model):
+    1:     def parse(self, ctx):
+               ctx._cut()
+       
+    1:     def _first(self, k, f):
+               return {('~',)}
+       
+    1:     def _to_str(self, lean=False):
+               return '~'
+       
+    1:     def _nullable(self):
+               return True
+       
+       
+    2: class Named(Decorator):
+    1:     def __init__(self, ast=None, **kwargs):
+               super().__init__(ast.exp)
+               self.name = ast.name
+       
+    1:     def parse(self, ctx):
+               value = self.exp.parse(ctx)
+               ctx.ast[self.name] = value
+               return value
+       
+    1:     def defines(self):
+               return [(self.name, False), *super().defines()]
+       
+    1:     def _to_str(self, lean=False):
+               if lean:
+                   return self.exp._to_str(lean=True)
+               return f'{self.name}:{self.exp._to_str(lean=lean)}'
+       
+       
+    2: class NamedList(Named):
+    1:     def parse(self, ctx):
+               value = self.exp.parse(ctx)
+               ctx.ast._setlist(self.name, value)
+               return value
+       
+    1:     def defines(self):
+               return [(self.name, True), *super().defines()]
+       
+    1:     def _to_str(self, lean=False):
+               if lean:
+                   return self.exp._to_str(lean=True)
+               return f'{self.name}+:{self.exp._to_str(lean=lean)!s}'
+       
+       
+    2: class Override(Named):
+    1:     def __init__(self, ast=None, **kwargs):
+               super().__init__(ast=AST(name='@', exp=ast))
+       
+    1:     def defines(self):
+               return []
+       
+       
+    2: class OverrideList(NamedList):
+    1:     def __init__(self, ast=None, **kwargs):
+               super().__init__(ast=AST(name='@', exp=ast))
+       
+    1:     def defines(self):
+               return []
+       
+       
+    2: class Special(Model):
+    1:     def _first(self, k, f):
+               return {(self.value,)}
+       
+    1:     def _to_str(self, lean=False):
+               return f'?{self.value}?'
+       
+    1:     def _nullable(self):
+               return True
+       
+       
+    2: class RuleRef(Model):
+    1:     def __post_init__(self):
+               super().__post_init__()
+               self.name = self.ast
+       
+    1:     def parse(self, ctx):
+               try:
+                   rule = ctx._find_rule(self.name)
+               except KeyError:
+                   ctx._error(self.name, exclass=FailedRef)
+               else:
+                   return rule()
+       
+    1:     def missing_rules(self, rules):
+               if self.name not in rules:
+                   return set({self.name})
+               return set()
+       
+    1:     def _used_rule_names(self):
+               return {self.name}
+       
+    1:     def _first(self, k, f):
+               self._firstset = set(f[self.name]) | {ref(self.name)}
+               return self._firstset
+       
+    1:     def _follow(self, k, fl, a):
+               fl[self.name] |= a
+               return set(a) | {self.name}
+       
+    1:     def firstset(self, k=1):
+               if self._firstset is None:
+                   self._firstset = {ref(self.name)}
+               return self._firstset
+       
+    1:     def _to_str(self, lean=False):
+               return self.name
+       
+    1:     def is_nullable(self, ctx=None):
+               return ctx[self.name].is_nullable(ctx)
+       
+       
+    2: class RuleInclude(Decorator):
+    1:     def __init__(self, rule):
+               assert isinstance(rule, Rule), str(rule.name)
+               super().__init__(rule.exp)
+               self.rule = rule
+       
+    1:     def _to_str(self, lean=False):
+               return f'>{self.rule.name}'
+       
+       
+    2: class Rule(Decorator):
+    1:     def __init__(self, ast, name, exp, params, kwparams, decorators=None):
+               assert kwparams is None or isinstance(kwparams, Mapping), kwparams
+               super().__init__(exp=exp, ast=ast)
+               self.name = name
+               self.params = params
+               self.kwparams = kwparams
+               self.decorators = decorators or []
+       
+               self.is_name = 'name' in self.decorators
+               self.base = None
+               self.is_leftrec = False  # Starts a left recursive cycle
+               self.is_memoizable = 'nomemo' not in self.decorators
+       
+    1:     def parse(self, ctx):
+               return self._parse_rhs(ctx, self.exp)
+       
+    1:     def _parse_rhs(self, ctx, exp):
+               ruleinfo = RuleInfo(
+                   self.name,
+                   exp.parse,
+                   self.is_leftrec,
+                   self.is_memoizable,
+                   self.is_name,
+                   self.params,
+                   self.kwparams,
+               )
+               return ctx._call(ruleinfo)
+       
+           # def firstset(self, k=1):
+           #     return self.exp.firstset(k=k)
+       
+    1:     def _first(self, k, f):
+               self._firstset = self.exp._first(k, f) | f[self.name]
+               return self._firstset
+       
+    1:     def _follow(self, k, fl, a):
+               return self.exp._follow(k, fl, fl[self.name])
+       
+    1:     def _nullable(self):
+               return Nullable.of(self.exp)
+       
+    2:     @staticmethod
+    2:     def param_repr(p):
+               if isinstance(p, int | float) or (isinstance(p, str) and p.isalnum()):
+                   return str(p)
+               else:
+                   return repr(p)
+       
+    1:     def _to_str(self, lean=False):
+               comments = self.comments_str()
+               if lean:
+                   params = ''
+               else:
+                   params = (
+                       ', '.join(self.param_repr(p) for p in self.params)
+                       if self.params
+                       else ''
+                   )
+       
+                   kwparams = ''
+                   if self.kwparams:
+                       kwparams = ', '.join(
+                           f'{k}={self.param_repr(v)}'
+                           for (k, v) in self.kwparams.items()
+                       )
+       
+                   if params and kwparams:
+                       params = f'({params}, {kwparams})'
+                   elif kwparams:
+                       params = f'({kwparams})'
+                   elif params:
+                       params = (
+                           f'::{params}'
+                           if len(self.params) == 1
+                           else f'({params})'
+                       )
+       
+               base = f' < {self.base.name!s}' if self.base else ''
+       
+               return trim(self.str_template).format(
+                   name=self.name,
+                   base=base,
+                   params=params,
+                   exp=indent(self.exp._to_str(lean=lean)),
+                   comments=comments,
+                   is_name='@name\n' if self.is_name else '',
+               )
+       
+    1:     str_template = """\
+                       {is_name}{comments}{name}{base}{params}
+                           =
+                       {exp}
+                           ;
+                       """
+       
+       
+    2: class BasedRule(Rule):
+    1:     def __init__(
+               self, ast, name, exp, base, params, kwparams, decorators=None,
+           ):
+               super().__init__(
+                   ast,
+                   name,
+                   exp,
+                   params or base.params,
+                   kwparams or base.kwparams,
+                   decorators=decorators,
+               )
+               self.base = base
+               ast = AST(sequence=[self.base.exp, self.exp])
+               ast.set_parseinfo(self.base.parseinfo)
+               self.rhs = Sequence(ast=ast)
+       
+    1:     def parse(self, ctx):
+               return self._parse_rhs(ctx, self.rhs)
+       
+    1:     def defines(self):
+               return self.rhs.defines()
+       
+       
+    2: class Grammar(Model):
+    1:     def __init__(
+               self,
+               name,
+               rules,
+               /,
+               config: ParserConfig | None = None,
+               directives: dict | None = None,
+               **settings,
+           ):
+               super().__init__()
+               assert isinstance(rules, list), str(rules)
+               directives = directives or {}
+               self.directives = directives
+       
+               config = ParserConfig.new(config=config, **directives)
+               config = config.replace(**settings)
+               self.config = config
+       
+               self.rules = rules
+               self.rulemap = {rule.name: rule for rule in rules}
+       
+               config = config.merge(**directives)
+       
+               if name is None:
+                   name = self.directives.get('grammar')
+               if name is None:
+                   name = self.config.name
+               if name is None and config.filename is not None:
+                   name = Path(config.filename).stem
+               if name is None:
+                   name = 'My'
+               self.name = name
+       
+               missing = self.missing_rules({r.name for r in self.rules})
+               if missing:
+                   msg = '\n'.join(['', *sorted(missing)])
+                   raise GrammarError('Unknown rules, no parser generated:' + msg)
+       
+               self._calc_lookahead_sets()
+               if config.left_recursion:
+                   find_left_recursion(self)
+       
+    2:     @property
+    2:     def keywords(self):
+               return self.config.keywords
+       
+    2:     @property
+    2:     def semantics(self):
+               return self.config.semantics
+       
+    2:     @semantics.setter
+    2:     def semantics(self, value):
+               self.config.semantics = value
+       
+    1:     def missing_rules(self, rules):
+               return set().union(
+                   *[rule.missing_rules(rules) for rule in self.rules],
+               )
+       
+    1:     def _used_rule_names(self):
+               if not self.rules:
+                   return {}
+       
+               used = {'start', self.rules[0].name}
+               prev = {}
+               while used != prev:
+                   prev = used
+                   used |= set().union(
+                       *[
+                           rule._used_rule_names()
+                           for rule in self.rules
+                           if rule.name in used
+                       ],
+                   )
+               return used
+       
+    1:     def used_rules(self):
+               used = self._used_rule_names()
+               return [rule for rule in self.rules if rule.name in used]
+       
+    2:     @property
+    2:     def first_sets(self):
+               return self._firstset
+       
+    1:     def _calc_lookahead_sets(self, k=1):
+               self._calc_first_sets()
+               self._calc_follow_sets()
+       
+    1:     def _calc_first_sets(self, k=1):
+               f = defaultdict(set)
+               f1 = None
+               while f1 != f:
+                   f1 = copy(f)
+                   for rule in self.rules:
+                       f[rule.name] |= rule._first(k, f)
+       
+               # cache results
+               for rule in self.rules:
+                   rule._firstset = f[rule.name]
+       
+    1:     def _calc_follow_sets(self, k=1):
+               fl = defaultdict(set)
+               fl1 = None
+               while fl1 != fl:
+                   fl1 = copy(fl)
+                   for rule in self.rules:
+                       rule._follow(k, fl, set())
+       
+               for rule in self.rules:
+                   rule._follow_set = fl[rule.name]
+       
+    1:     def parse(self, text: str, /, config: ParserConfig | None = None, ctx=None, **settings):  # type: ignore[override]
+               config = self.config.replace_config(config)
+               config = config.replace(**settings)
+       
+               start = config.effective_rule_name()
+               if start is None:
+                   start = self.rules[0].name
+                   config.start_rule = start  # FIXME
+       
+               if ctx is None:
+                   ctx = ModelContext(self.rules, config=config)
+               return ctx.parse(text, config=config)
+       
+    1:     def nodecount(self):
+               return 1 + sum(r.nodecount() for r in self.rules)
+       
+    1:     def _to_str(self, lean=False):
+               regex_directives = {'comments', 'eol_comments', 'whitespace'}
+               str_directives = {'comments', 'grammar'}
+               string_directives = {'namechars'}
+       
+               directives = ''
+               for directive, value in self.directives.items():
+                   fmt = dict(  # noqa: C408
+                       name=directive,
+                       frame='/' if directive in regex_directives else '',
+                       value=(
+                           repr(value)
+                           if directive in string_directives
+                           else str(value)
+                           if directive in str_directives
+                           else value
+                       ),
+                   )
+                   directives += '@@{name} :: {frame}{value}{frame}\n'.format(**fmt)
+               if directives:
+                   directives += '\n'
+       
+               keywords = '\n'.join(
+                   '@@keyword :: ' + ' '.join(repr(k) for k in c if k is not None)
+                   for c in chunks(sorted(self.keywords), 8)
+               ).strip()
+               keywords = '\n\n' + keywords + '\n' if keywords else ''
+       
+               rules = (
+                   '\n\n'.join(str(rule._to_str(lean=lean)) for rule in self.rules)
+               ).rstrip() + '\n'
+               return directives + keywords + rules

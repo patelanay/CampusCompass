@@ -1,0 +1,49 @@
+       # Copyright 2009-present MongoDB, Inc.
+       #
+       # Licensed under the Apache License, Version 2.0 (the "License");
+       # you may not use this file except in compliance with the License.
+       # You may obtain a copy of the License at
+       #
+       # http://www.apache.org/licenses/LICENSE-2.0
+       #
+       # Unless required by applicable law or agreed to in writing, software
+       # distributed under the License is distributed on an "AS IS" BASIS,
+       # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+       # See the License for the specific language governing permissions and
+       # limitations under the License.
+       
+    1: """Exceptions raised by the BSON package."""
+    1: from __future__ import annotations
+       
+    1: from typing import Any, Optional
+       
+       
+    2: class BSONError(Exception):
+    1:     """Base class for all BSON exceptions."""
+       
+       
+    2: class InvalidBSON(BSONError):
+    1:     """Raised when trying to create a BSON object from invalid data."""
+       
+       
+    2: class InvalidStringData(BSONError):
+    1:     """Raised when trying to encode a string containing non-UTF8 data."""
+       
+       
+    2: class InvalidDocument(BSONError):
+    1:     """Raised when trying to create a BSON object from an invalid document."""
+       
+    1:     def __init__(self, message: str, document: Optional[Any] = None) -> None:
+               super().__init__(message)
+               self._document = document
+       
+    2:     @property
+    2:     def document(self) -> Any:
+               """The invalid document that caused the error.
+       
+               ..versionadded:: 4.16"""
+               return self._document
+       
+       
+    2: class InvalidId(BSONError):
+    1:     """Raised when trying to create an ObjectId from invalid data."""

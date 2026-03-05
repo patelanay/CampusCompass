@@ -1,0 +1,136 @@
+    1: from __future__ import annotations
+       
+    1: import copy
+    1: import operator
+    1: from functools import reduce
+       
+    1: from tatsu.util import asjson
+       
+    1: from .util import is_list
+       
+       
+    2: class AST(dict):
+    1:     _frozen = False
+       
+    1:     def __init__(self, *args, **kwargs):
+  211:         super().__init__()
+  211:         self.update(*args, **kwargs)
+  211:         self._frozen = True
+       
+    2:     @property
+    2:     def frozen(self):
+               return self._frozen
+       
+    2:     @property
+    2:     def parseinfo(self):
+               try:
+                   return super().__getitem__('parseinfo')
+               except KeyError:
+                   pass
+       
+    1:     def set_parseinfo(self, value):
+   30:         super().__setitem__('parseinfo', value)
+       
+    1:     def copy(self):
+               return copy.copy(self)
+       
+    1:     def asjson(self):
+               return asjson(self)
+       
+    1:     def _set(self, key, value, force_list=False):
+   90:         key = self._safekey(key)
+   90:         previous = self.get(key)
+       
+   90:         if previous is None and force_list:
+                   value = [value]
+   90:         elif previous is None:
+   90:             pass
+               elif is_list(previous):
+                   value = [*previous, value]
+               else:
+                   value = [previous, value]
+       
+   90:         super().__setitem__(key, value)
+       
+    1:     def _setlist(self, key, value):
+               return self._set(key, value, force_list=True)
+       
+    1:     def __copy__(self):
+   60:         return AST(self)
+       
+    1:     def __getitem__(self, key):
+   90:         if key in self:
+   90:             return super().__getitem__(key)
+               key = self._safekey(key)
+               if key in self:
+                   return super().__getitem__(key)
+               return None
+       
+    1:     def __setitem__(self, key, value):
+   90:         self._set(key, value)
+       
+    1:     def __delitem__(self, key):
+               key = self._safekey(key)
+               super().__delitem__(key)
+       
+    1:     def __setattr__(self, name, value):
+  211:         if self._frozen and name not in vars(self):
+                   raise AttributeError(
+                       f'{type(self).__name__} attributes are fixed. '
+                       f' Cannot set attribute "{name}".',
+                   )
+  211:         super().__setattr__(name, value)
+       
+    1:     def __getattr__(self, name):
+               key = self._safekey(name)
+               if key in self:
+                   return self[key]
+               elif name in self:
+                   return self[name]
+       
+               try:
+                   return super().__getattribute__(name)
+               except AttributeError:
+                   return None
+       
+    1:     def __hasattribute__(self, name):
+  180:         try:
+  180:             super().__getattribute__(name)
+  180:         except (TypeError, AttributeError):
+  180:             return False
+               else:
+                   return True
+       
+    1:     def __reduce__(self):
+               return (AST, (list(self.items()),))
+       
+    1:     def _safekey(self, key):
+  180:         while self.__hasattribute__(key):
+                   key += '_'
+  180:         return key
+       
+    1:     def _define(self, keys, list_keys=None):
+  180:         for key in (self._safekey(k) for k in keys):
+   60:             if key not in self:
+                       super().__setitem__(key, None)
+       
+  120:         for key in (self._safekey(k) for k in list_keys or []):
+   30:             if key not in self:
+   30:                 super().__setitem__(key, [])
+       
+    1:     def __json__(self, seen=None):
+               return {name: asjson(value, seen=seen) for name, value in self.items()}
+       
+    1:     def __repr__(self):
+               return repr(self.asjson())
+       
+    1:     def __str__(self):
+               return str(self.asjson())
+       
+    1:     def __hash__(self):
+               # NOTE: objects are actually mutable during creation
+               return reduce(
+                   operator.xor,
+                   (hash((name, id(value))) for name, value in self.items()),
+                   0,
+               )

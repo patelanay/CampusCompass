@@ -1,0 +1,132 @@
+    1: from __future__ import annotations
+       
+    1: import dataclasses
+    1: from collections.abc import Callable
+    1: from itertools import starmap
+    1: from typing import Any, NamedTuple
+       
+    1: from .ast import AST
+       
+       
+    2: class UndefinedStr(str):
+    1:     pass
+       
+       
+    1: _undefined_str = UndefinedStr('>>undefined<<')
+       
+       
+    2: class PosLine(NamedTuple):
+    1:     start: int
+    1:     line: int
+    1:     length: int
+       
+    2:     @staticmethod
+    2:     def build_line_cache(lines):
+   30:         cache = []
+   30:         n = 0
+   30:         i = 0
+   60:         for n, line in enumerate(lines):
+   30:             pl = PosLine(i, n, len(line))
+  558:             for _ in line:
+  528:                 cache.append(pl)  # noqa: PERF401
+   30:             i += len(line)
+   30:         n += 1
+   30:         if lines and lines[-1] and lines[-1][-1] in '\r\n':
+                   n += 1
+   30:         cache.append(PosLine(i, n, 0))
+   30:         return cache, n
+       
+       
+    2: class LineIndexInfo(NamedTuple):
+    1:     filename: str
+    1:     line: int
+       
+    2:     @staticmethod
+    2:     def block_index(name, n):
+   60:         return list(
+   30:             starmap(LineIndexInfo, zip(n * [name], range(n), strict=False)),
+               )
+       
+       
+    2: class LineInfo(NamedTuple):
+    1:     filename: str
+    1:     line: int
+    1:     col: int
+    1:     start: int
+    1:     end: int
+    1:     text: int
+       
+       
+    2: class CommentInfo(NamedTuple):
+    1:     inline: list
+    1:     eol: list
+       
+    2:     @staticmethod
+    2:     def new_comment():
+               return CommentInfo([], [])
+       
+       
+    2: class Alert(NamedTuple):
+    1:     level: int = 1
+    1:     message: str = ''
+       
+       
+    2: class ParseInfo(NamedTuple):
+    1:     tokenizer: Any
+    1:     rule: str
+    1:     pos: int
+    1:     endpos: int
+    1:     line: int
+    1:     endline: int
+    1:     alerts: list[Alert] = []  # noqa: RUF012
+       
+    1:     def text_lines(self):
+               return self.tokenizer.get_lines(self.line, self.endline)
+       
+    1:     def line_index(self):
+               return self.tokenizer.line_index(self.line, self.endline)
+       
+    2:     @property
+    2:     def buffer(self):
+               return self.tokenizer
+       
+       
+    2: class MemoKey(NamedTuple):
+    1:     pos: int
+    1:     rule: str
+    1:     state: Any
+       
+       
+    2: class RuleInfo(NamedTuple):
+    1:     name: str
+    1:     impl: Callable
+    1:     is_leftrec: bool
+    1:     is_memoizable: bool
+    1:     is_name: bool
+    1:     params: list
+    1:     kwparams: dict
+       
+    1:     def __hash__(self):
+  120:         return hash(self.name)
+       
+    1:     def __eq__(self, other):
+               if isinstance(other, RuleInfo):
+                   return self.name == other.name
+               return False
+       
+    1:     def __ne__(self, other):
+               return not self.__eq__(other)
+       
+       
+    2: class RuleResult(NamedTuple):
+    1:     node: Any
+    1:     newpos: int
+    1:     newstate: Any
+       
+       
+    3: @dataclasses.dataclass(slots=True)
+    2: class ParseState:
+    1:     pos: int = 0
+    1:     ast: AST = dataclasses.field(default_factory=AST)
+    1:     cst: Any = None
+    1:     alerts: list[Alert] = dataclasses.field(default_factory=list)

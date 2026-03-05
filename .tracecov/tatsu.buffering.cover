@@ -1,0 +1,411 @@
+    1: """
+       The Buffer class provides the functionality required by a parser-driven lexer.
+       
+       Line analysis and caching are done so the parser can freely move with goto(p)
+       to any position in the parsed text, and still recover accurate information
+       about source lines and content.
+       """
+    1: from __future__ import annotations
+       
+    1: import re
+    1: from itertools import repeat, takewhile
+    1: from pathlib import Path
+    1: from typing import Any
+       
+    1: from .exceptions import ParseError
+    1: from .infos import (
+           CommentInfo,
+           LineIndexInfo,
+           LineInfo,
+           PosLine,
+           UndefinedStr,
+       )
+    1: from .parserconfig import ParserConfig
+    1: from .tokenizing import Tokenizer
+    1: from .util import (
+           contains_sublist,
+           extend_list,
+           identity,
+       )
+    1: from .util.misc import cached_re_compile, match_to_find
+       
+    1: DEFAULT_WHITESPACE_RE = re.compile(r'(?m)\s+')
+       
+       # for backwards compatibility with existing parsers
+    1: LineIndexEntry = LineIndexInfo
+       
+       
+    2: class Buffer(Tokenizer):
+       
+    1:     def __init__(
+               self, text, /, config: ParserConfig | None = None, **settings: Any,
+           ):
+   30:         super().__init__()
+   30:         config = ParserConfig.new(config=config, **settings)
+   30:         self.config = config
+       
+   30:         text = str(text)
+   30:         self.text = self.original_text = text
+       
+   30:         self.whitespace_re = self.build_whitespace_re(config.whitespace)
+   30:         self.nameguard = (
+                   config.nameguard
+   30:             if config.nameguard is not None
+   30:             else bool(self.whitespace_re) or bool(config.namechars)
+               )
+   30:         self._namechar_set = set(config.namechars)
+       
+   30:         self._pos = 0
+   30:         self._len = 0
+   30:         self._linecount = 0
+   30:         self._lines: list[str] = []
+   30:         self._line_index: list[LineIndexInfo] = []
+   30:         self._line_cache: list[PosLine] = []
+   30:         self._comment_index: list[CommentInfo] = []
+       
+   30:         self._preprocess()
+   30:         self._postprocess()
+       
+    2:     @property
+    2:     def filename(self):
+   30:         return self.config.filename
+       
+    2:     @property
+    2:     def ignorecase(self):
+   90:         return self.config.ignorecase
+       
+    2:     @property
+    2:     def whitespace(self):
+               return self.config.whitespace
+       
+    2:     @staticmethod
+    2:     def build_whitespace_re(whitespace):
+   30:         if type(whitespace) is UndefinedStr:
+   30:             return DEFAULT_WHITESPACE_RE
+               if whitespace in {None, ''}:
+                   return None
+               elif isinstance(whitespace, re.Pattern):
+                   return whitespace
+               elif whitespace:
+                   return cached_re_compile(whitespace)
+               else:
+                   return None
+       
+    1:     def _preprocess(self, *args, **kwargs):
+   30:         lines, index = self._preprocess_block(self.filename, self.text)
+   30:         self._lines = lines
+   30:         self._line_index = index
+   30:         self.text = self.join_block_lines(lines)
+       
+    1:     def _postprocess(self):
+   30:         cache, count = PosLine.build_line_cache(self._lines)
+   30:         self._line_cache = cache
+   30:         self._linecount = count
+   30:         self._len = len(self.text)
+       
+    1:     def _preprocess_block(self, name, block, **kwargs):
+   30:         lines = self.split_block_lines(block)
+   30:         index = LineIndexInfo.block_index(name, len(lines))
+   30:         return self.process_block(name, lines, index, **kwargs)
+       
+    1:     def split_block_lines(self, block):
+   30:         return block.splitlines(True)
+       
+    1:     def join_block_lines(self, lines):
+   30:         return ''.join(lines)
+       
+    1:     def process_block(self, name, lines, index, **kwargs):
+   30:         return lines, index
+       
+    1:     def include(self, lines, index, i, j, name, block, **kwargs):
+               blines, bindex = self._preprocess_block(name, block, **kwargs)
+               assert len(blines) == len(bindex)
+               lines[i:j] = blines
+               index[i:j] = bindex
+               assert len(lines) == len(index)
+               return j + len(blines) - 1
+       
+    1:     def include_file(self, source, name, lines, index, i, j):
+               text, filename = self.get_include(source, name)
+               return self.include(lines, index, i, j, filename, text)
+       
+    1:     def get_include(self, source, filename):
+               source = Path(source).resolve()
+               base = source.parent
+               include = base / filename
+               try:
+                   with include.open() as f:
+                       return f.read(), include
+               except OSError as e:
+                   raise ParseError(f'include not found: {include}') from e
+       
+    1:     def replace_lines(self, i, j, name, block):
+               lines = self.split_block_lines(self.text)
+               index = list(self._line_index)
+       
+               endline = self.include(lines, index, i, j, name, block)
+       
+               self.text = self.join_block_lines(lines)
+               self._line_index = index
+               self._postprocess()
+       
+               newtext = self.join_block_lines(lines[j + 1: endline + 2])
+               return endline, newtext
+       
+    2:     @property
+    2:     def pos(self):
+ 1440:         return self._pos
+       
+    2:     @pos.setter
+    2:     def pos(self, p):
+               self.goto(p)
+       
+    2:     @property
+    2:     def line(self):
+               return self.posline()
+       
+    2:     @property
+    2:     def col(self):
+               return self.poscol()
+       
+    1:     def posline(self, pos=None):
+   60:         if pos is None:
+                   pos = self._pos
+   60:         return self._line_cache[pos].line
+       
+    1:     def poscol(self, pos=None):
+               if pos is None:
+                   pos = self._pos
+               start = self._line_cache[pos].start
+               return pos - start
+       
+    1:     def atend(self):
+   30:         return self._pos >= self._len
+       
+    1:     def ateol(self):
+               return self.atend() or self.current in '\r\n'
+       
+    2:     @property
+    2:     def current(self):
+               if self._pos >= self._len:
+                   return None
+               return self.text[self._pos]
+       
+    1:     def at(self, p):
+               if p >= self._len:
+                   return None
+               return self.text[p]
+       
+    1:     def peek(self, n=1):
+               return self.at(self._pos + n)
+       
+    1:     def next(self):
+               if self.atend():
+                   return None
+               c = self.text[self._pos]
+               self._pos += 1
+               return c
+       
+    1:     def goto(self, pos):
+  390:         self._pos = max(0, min(len(self.text), pos))
+       
+    1:     def move(self, n):
+   90:         self.goto(self.pos + n)
+       
+    1:     def comments(self, p, clear=False):
+               if not self.config.comment_recovery or not self._comment_index:
+                   return CommentInfo([], [])
+       
+               n = self.posline(p)
+               if n >= len(self._comment_index):
+                   return CommentInfo([], [])
+       
+               eolcmm = []
+               if n < len(self._comment_index):
+                   eolcmm = self._comment_index[n].eol
+                   if clear:
+                       self._comment_index[n].eol = []
+       
+               cmm = []
+               while n >= 0 and self._comment_index[n].inline:
+                   cmm.insert(0, self._comment_index[n].inline)
+                   if clear:
+                       self._comment_index[n].inline = []
+                   n -= 1
+       
+               return CommentInfo(cmm, eolcmm)
+       
+    1:     def _index_comments(self, comments, selector):
+  480:         if comments and self.config.comment_recovery:
+                   n = self.line
+                   extend_list(
+                       self._comment_index, n, default=CommentInfo.new_comment,
+                   )
+                   previous = selector(self._comment_index[n])
+                   if not contains_sublist(
+                       previous, comments,
+                   ):  # FIXME: will discard repeated comments
+                       previous.extend(comments)
+       
+    1:     def _eat_regex(self, regex):
+  240:         if not regex:
+                   return
+  240:         while self._matchre_fast(regex):
+                   pass
+       
+    1:     def _eat_regex_list(self, regex):
+  480:         if not regex:
+  480:             return []
+               regex = cached_re_compile(regex)
+               return list(takewhile(identity, map(self.matchre, repeat(regex))))
+       
+    1:     def eat_whitespace(self):
+  240:         return self._eat_regex(self.whitespace_re)
+       
+    1:     def eat_comments(self):
+  240:         comments = self._eat_regex_list(self.config.comments)
+  240:         self._index_comments(comments, lambda x: x.inline)
+       
+    1:     def eat_eol_comments(self):
+  240:         comments = self._eat_regex_list(self.config.eol_comments)
+  240:         self._index_comments(comments, lambda x: x.eol)
+       
+    1:     def next_token(self):
+  240:         p = None
+  480:         while self._pos != p:
+  240:             p = self._pos
+  240:             self.eat_eol_comments()
+  240:             self.eat_comments()
+  240:             self.eat_whitespace()
+       
+    1:     def skip_to(self, c):
+               p = self._pos
+               le = self._len
+               while p < le and self.text[p] != c:
+                   p += 1
+               self.goto(p)
+               return self.pos
+       
+    1:     def skip_past(self, c):
+               self.skip_to(c)
+               self.next()
+               return self.pos
+       
+    1:     def skip_to_eol(self):
+               return self.skip_to('\n')
+       
+    1:     def scan_space(self):
+               return (
+                   self.whitespace_re and self._scanre(self.whitespace_re) is not None
+               )
+       
+    1:     def is_space(self):
+               return self.scan_space()
+       
+    1:     def is_name_char(self, c):
+               return c is not None and (c.isalnum() or c in self._namechar_set)
+       
+    1:     def match(self, token: str) -> str | None:
+   90:         if token is None:
+                   return self.atend()
+       
+   90:         p = self.pos
+   90:         if self.ignorecase:
+                   is_match = self.text[p: p + len(token)].lower() == token.lower()
+               else:
+   90:             is_match = self.text[p: p + len(token)] == token
+       
+   90:         if not is_match:
+   60:             return None
+       
+   30:         self.move(len(token))
+   30:         partial_match = (
+   90:             self.nameguard
+   30:             and token
+   30:             and token[0].isalpha()
+                   and self.is_name_char(self.current)
+                   and all(self.is_name_char(t) for t in token)
+               )
+   30:         if partial_match:
+                   self.goto(p)
+                   return None
+       
+   30:         return token
+       
+    1:     def _matchre_fast(self, pattern):
+  240:         if not (match := self._scanre(pattern)):
+  240:             return
+       
+               self.move(len(match.group()))
+       
+    1:     def matchre(self, pattern):
+   60:         if not (match := self._scanre(pattern)):
+                   return None
+       
+   60:         matched = match.group()
+   60:         token = match_to_find(match)
+   60:         self.move(len(matched))
+   60:         return token
+       
+    1:     def _scanre(self, pattern):
+  300:         cre = cached_re_compile(pattern)
+  300:         return cre.match(self.text, self.pos)
+       
+    2:     @property
+    2:     def linecount(self):
+               return self._linecount
+       
+    1:     def line_info(self, pos=None):
+               if pos is None:
+                   pos = self._pos
+       
+               # -2 to skip over sentinel
+               pos = min(pos, len(self._line_cache) - 2)
+               start, line, length = self._line_cache[pos]
+               end = start + length
+               col = pos - start
+       
+               text = self.text[start:end]
+       
+               # only required to support includes
+               n = min(len(self._line_index) - 1, line)
+               filename, line = self._line_index[n]
+       
+               return LineInfo(filename, line, col, start, end, text)
+       
+    1:     def lookahead_pos(self):
+               if self.atend():
+                   return ''
+               info = self.line_info()
+               return '~%d:%d' % (info.line + 1, info.col + 1)
+       
+    1:     def lookahead(self):
+               if self.atend():
+                   return ''
+               info = self.line_info()
+               text = info.text[info.col: info.col + 1 + 80]
+               text = self.split_block_lines(text)[0].rstrip()
+               return f'{text}'
+       
+    1:     def get_line(self, n=None):
+               if n is None:
+                   n = self.line
+               return self._lines[n]
+       
+    1:     def get_lines(self, start=None, end=None):
+               if start is None:
+                   start = 0
+               if end is None:
+                   end = len(self._lines)
+               return self._lines[start: end + 1]
+       
+    1:     def line_index(self, start=0, end=None):
+               if end is None:
+                   end = len(self._line_index)
+               return self._line_index[start: 1 + end]
+       
+    1:     def __repr__(self):
+               return '%s@%d' % (type(self).__name__, self.pos)
+       
+    1:     def __json__(self, seen=None):
+               return None

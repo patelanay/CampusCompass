@@ -1,0 +1,71 @@
+    1: import unittest
+    1: from datetime import datetime, timezone
+       
+    1: from backend.taskbar import Task, Taskbar
+       
+       
+    2: class TaskbarTests(unittest.TestCase):
+    1:     def test_task_to_dict_serializes_due_date_and_created_at(self):
+    1:         due_date = datetime(2026, 3, 10, 15, 0, tzinfo=timezone.utc)
+    1:         task = Task(title="Write tests", description="Coverage work", priority="high", due_date=due_date)
+    1:         task_dict = task.to_dict()
+       
+    1:         self.assertEqual(task_dict["title"], "Write tests")
+    1:         self.assertEqual(task_dict["description"], "Coverage work")
+    1:         self.assertEqual(task_dict["priority"], "high")
+    1:         self.assertEqual(task_dict["due_date"], due_date.isoformat())
+    1:         self.assertTrue(task_dict["created_at"].endswith("+00:00"))
+       
+    1:     def test_task_to_dict_without_due_date_has_none(self):
+    1:         task = Task(title="No due date")
+    1:         task_dict = task.to_dict()
+    1:         self.assertIsNone(task_dict["due_date"])
+       
+    1:     def test_add_task_returns_id_and_stores_task(self):
+    1:         taskbar = Taskbar()
+    1:         task_id = taskbar.add_task("Build API", "Implement endpoints", "medium")
+       
+    1:         self.assertIn(task_id, taskbar.tasks)
+    1:         self.assertEqual(taskbar.tasks[task_id].title, "Build API")
+       
+    1:     def test_edit_task_updates_only_provided_fields(self):
+    1:         taskbar = Taskbar()
+    1:         task_id = taskbar.add_task("Old title", "Old desc", "low")
+    1:         success = taskbar.edit_task(task_id, {"title": "New title", "priority": "high"})
+       
+    1:         self.assertTrue(success)
+    1:         self.assertEqual(taskbar.tasks[task_id].title, "New title")
+    1:         self.assertEqual(taskbar.tasks[task_id].priority, "high")
+    1:         self.assertEqual(taskbar.tasks[task_id].description, "Old desc")
+       
+    1:     def test_edit_task_returns_false_for_missing_task(self):
+    1:         taskbar = Taskbar()
+    1:         self.assertFalse(taskbar.edit_task("missing-id", {"title": "x"}))
+       
+    1:     def test_remove_task_success_and_failure(self):
+    1:         taskbar = Taskbar()
+    1:         task_id = taskbar.add_task("Task to remove")
+       
+    1:         self.assertTrue(taskbar.remove_task(task_id))
+    1:         self.assertFalse(taskbar.remove_task(task_id))
+       
+    1:     def test_list_tasks_returns_serialized_tasks(self):
+    1:         taskbar = Taskbar()
+    1:         taskbar.add_task("Task A")
+    1:         taskbar.add_task("Task B")
+    1:         tasks = taskbar.list_tasks()
+       
+    1:         self.assertEqual(len(tasks), 2)
+    3:         self.assertEqual({task["title"] for task in tasks}, {"Task A", "Task B"})
+       
+    1:     def test_mark_task_completed_success_and_failure(self):
+    1:         taskbar = Taskbar()
+    1:         task_id = taskbar.add_task("Complete me")
+       
+    1:         self.assertTrue(taskbar.mark_task_completed(task_id))
+    1:         self.assertTrue(taskbar.tasks[task_id].completed)
+    1:         self.assertFalse(taskbar.mark_task_completed("missing-id"))
+       
+       
+    1: if __name__ == "__main__":
+           unittest.main()

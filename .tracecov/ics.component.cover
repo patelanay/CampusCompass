@@ -1,0 +1,89 @@
+    1: import warnings
+    1: from collections import namedtuple
+    1: from typing import Any, Dict, Tuple, Iterable
+       
+    1: from ics.grammar.parse import Container
+    1: from .utils import get_lines
+    1: from .serializers.serializer import Serializer
+    1: from .parsers.parser import Parser
+       
+    2: Extractor = namedtuple(
+    1:     'Extractor',
+    1:     ['function', 'type', 'required', 'multiple', 'default']
+       )
+       
+       
+    3: class Component(object):
+       
+    2:     class Meta:
+    1:         name = "ABSTRACT"
+    1:         parser = Parser
+    1:         serializer = Serializer
+       
+           _classmethod_args: Tuple
+           _classmethod_kwargs: Dict
+       
+    2:     @classmethod
+    2:     def _from_container(cls, container: Container, *args: Any, **kwargs: Any):
+    3:         k = cls()
+    3:         k._classmethod_args = args
+    3:         k._classmethod_kwargs = kwargs
+    3:         k._populate(container)
+       
+    3:         return k
+       
+    1:     def _populate(self, container: Container) -> None:
+    6:         if container.name != self.Meta.name:
+                   raise ValueError("container isn't an {}".format(self.Meta.name))
+       
+   81:         for line_name, (parser, options) in self.Meta.parser.get_parsers().items():
+   75:             lines = get_lines(container, line_name)
+   75:             if not lines and options.required:
+                       if options.default:
+                           lines = options.default
+                           default_str = "\\n".join(map(str, options.default))
+                           message = ("The %s property was not found and is required by the RFC." +
+                               " A default value of \"%s\" has been used instead") % (line_name, default_str)
+                           warnings.warn(message)
+                       else:
+                           raise ValueError(
+                               'A {} must have at least one {}'
+                               .format(container.name, line_name))
+       
+   75:             if not options.multiple and len(lines) > 1:
+                       raise ValueError(
+                           'A {} must have at most one {}'
+                           .format(container.name, line_name))
+       
+   75:             if options.multiple:
+   15:                 parser(self, lines)  # Send a list or empty list
+                   else:
+   60:                 if len(lines) == 1:
+   18:                     parser(self, lines[0])  # Send the element
+                       else:
+   42:                     parser(self, None)  # Send None
+       
+    6:         self.extra = container  # Store unused lines
+       
+    1:     def serialize(self) -> str:
+               """Returns the component in an iCalendar format."""
+               container = self.extra.clone()
+               for output in self.Meta.serializer.get_serializers():
+                   output(self, container)
+               return str(container)
+       
+    1:     def serialize_iter(self) -> Iterable[str]:
+               """Returns the component in an iCalendar format.
+       
+               This returns an Iterable of multiple string chunks which should be concatenated to form the actual ics representation.
+               Note that individual items of the returned Iterable not necessarily correspond to individual lines,
+               linebreaks are contained at the right places within the items."""
+               return self.serialize().splitlines(keepends=True)
+       
+    1:     def __str__(self) -> str:
+               """Starting from version 0.9, returns a short description of the Component."""
+               warnings.warn(
+                   "Behaviour of str(Component) will change in version 0.9 to only return a short description, NOT the ics representation. "
+                   "Use the explicit Component.serialize() to get the ics representation.", FutureWarning
+               )
+               return self.serialize()

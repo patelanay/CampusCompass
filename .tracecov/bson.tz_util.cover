@@ -1,0 +1,56 @@
+       # Copyright 2010-2015 MongoDB, Inc.
+       #
+       # Licensed under the Apache License, Version 2.0 (the "License");
+       # you may not use this file except in compliance with the License.
+       # You may obtain a copy of the License at
+       #
+       # http://www.apache.org/licenses/LICENSE-2.0
+       #
+       # Unless required by applicable law or agreed to in writing, software
+       # distributed under the License is distributed on an "AS IS" BASIS,
+       # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+       # See the License for the specific language governing permissions and
+       # limitations under the License.
+       
+    1: """Timezone related utilities for BSON."""
+    1: from __future__ import annotations
+       
+    1: from datetime import datetime, timedelta, tzinfo
+    1: from typing import Optional, Tuple, Union
+       
+    1: ZERO: timedelta = timedelta(0)
+       
+       
+    2: class FixedOffset(tzinfo):
+    1:     """Fixed offset timezone, in minutes east from UTC.
+       
+           Implementation based from the Python `standard library documentation
+           <http://docs.python.org/library/datetime.html#tzinfo-objects>`_.
+           Defining __getinitargs__ enables pickling / copying.
+           """
+       
+    1:     def __init__(self, offset: Union[float, timedelta], name: str) -> None:
+    1:         if isinstance(offset, timedelta):
+                   self.__offset = offset
+               else:
+    1:             self.__offset = timedelta(minutes=offset)
+    1:         self.__name = name
+       
+    1:     def __getinitargs__(self) -> Tuple[timedelta, str]:
+               return self.__offset, self.__name
+       
+    1:     def __repr__(self) -> str:
+               return f"{self.__class__.__name__}({self.__offset!r}, {self.__name!r})"
+       
+    1:     def utcoffset(self, dt: Optional[datetime]) -> timedelta:
+    5:         return self.__offset
+       
+    1:     def tzname(self, dt: Optional[datetime]) -> str:
+               return self.__name
+       
+    1:     def dst(self, dt: Optional[datetime]) -> timedelta:
+    4:         return ZERO
+       
+       
+    1: utc: FixedOffset = FixedOffset(0, "UTC")
+    1: """Fixed offset timezone representing UTC."""

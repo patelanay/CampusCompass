@@ -1,0 +1,6 @@
+    1: from datetime import datetime
+    1: from typing import Union
+       
+    1: from arrow import Arrow
+       
+    1: ArrowLike = Union[datetime, Arrow]

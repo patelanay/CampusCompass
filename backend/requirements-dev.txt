@@ -1,0 +1,2 @@
+-r requirements.txt
+# Unit tests and coverage run via Python stdlib (unittest + trace).

@@ -1,0 +1,152 @@
+    1: from datetime import datetime, timezone
+    1: from typing import Dict, List, Optional
+    1: from uuid import uuid4
+       
+       
+    2: class InMemoryCalendarManager:
+    1:     """Simple in-memory calendar manager used as a fallback when MongoDB isn't available.
+       
+           Implements the minimal API used by the FastAPI endpoints in `main.py`:
+           - create_event(user_id, event_dict)
+           - get_event(event_id, user_id)
+           - get_user_events(user_id, start, end)
+           - update_event(event_id, user_id, update_dict)
+           - delete_event(event_id, user_id, ...)
+           - find_free_slots(user_id, start, end, min_duration)
+           - get_statistics(user_id, start, end)
+           - load_user_calendar(user_id)
+           """
+       
+    1:     def __init__(self):
+   56:         self.store: Dict[str, List[Dict]] = {}
+       
+    1:     def _now_utc(self):
+   15:         return datetime.now(timezone.utc)
+       
+    2:     @staticmethod
+    2:     def _parse_iso_datetime(value: str) -> datetime:
+   65:         return datetime.fromisoformat(value.replace('Z', '+00:00'))
+       
+    1:     def create_event(self, user_id: str, event_data: Dict) -> Dict:
+   19:         required = ['title', 'start_time', 'end_time', 'event_type']
+   92:         for field in required:
+   74:             if field not in event_data:
+    1:                 return {'success': False, 'error': f"Missing field: {field}"}
+       
+               # Parse ISO strings
+   18:         try:
+   18:             start = self._parse_iso_datetime(event_data['start_time'])
+   17:             end = self._parse_iso_datetime(event_data['end_time'])
+    1:         except Exception as e:
+    1:             return {'success': False, 'error': f'Invalid datetime format: {e}'}
+       
+   17:         if start >= end:
+    1:             return {'success': False, 'error': 'Start time must be before end time'}
+       
+               # Conflict check
+   16:         user_events = self.store.setdefault(user_id, [])
+   20:         for ev in user_events:
+    5:             ev_start = self._parse_iso_datetime(ev['start_time'])
+    5:             ev_end = self._parse_iso_datetime(ev['end_time'])
+    5:             if not (end <= ev_start or start >= ev_end):
+    1:                 return {'success': False, 'error': 'Time slot conflicts with existing event'}
+       
+   15:         event_id = str(uuid4())
+   15:         doc = {
+   15:             '_id': event_id,
+   15:             'user_id': user_id,
+   15:             'title': event_data['title'],
+   15:             'start_time': start.isoformat(),
+   15:             'end_time': end.isoformat(),
+   15:             'event_type': event_data.get('event_type', ''),
+   15:             'location': event_data.get('location'),
+   15:             'description': event_data.get('description'),
+   15:             'color': event_data.get('color', '#3498db'),
+   15:             'recurrence': event_data.get('recurrence', 'none'),
+   15:             'recurrence_end_date': event_data.get('recurrence_end_date'),
+   15:             'reminders': event_data.get('reminders', [15, 60]),
+   15:             'created_at': self._now_utc().isoformat()
+               }
+       
+   15:         user_events.append(doc)
+   15:         return {'success': True, 'event_id': event_id}
+       
+    1:     def get_event(self, event_id: str, user_id: str) -> Optional[Dict]:
+   12:         for ev in self.store.get(user_id, []):
+   11:             if ev.get('_id') == event_id:
+    9:                 return ev
+    1:         return None
+       
+    1:     def get_user_events(self, user_id: str, start: Optional[datetime] = None, end: Optional[datetime] = None) -> List[Dict]:
+    6:         events = list(self.store.get(user_id, []))
+               # naive filtering by iso strings if requested
+    6:         if start or end:
+    3:             filtered = []
+    9:             for ev in events:
+    6:                 ev_start = self._parse_iso_datetime(ev['start_time'])
+    6:                 ev_end = self._parse_iso_datetime(ev['end_time'])
+    6:                 if start and ev_end < start:
+    1:                     continue
+    5:                 if end and ev_start > end:
+                           continue
+    5:                 filtered.append(ev)
+    3:             return filtered
+    3:         return events
+       
+    1:     def update_event(self, event_id: str, user_id: str, update_data: Dict) -> Dict:
+    3:         ev = self.get_event(event_id, user_id)
+    3:         if not ev:
+    1:             return {'success': False, 'error': 'Event not found'}
+    2:         ev.update(update_data)
+    2:         return {'success': True}
+       
+    1:     def delete_event(self, event_id: str, user_id: str, delete_future: bool = False, from_date: Optional[datetime] = None) -> Dict:
+    4:         _ = delete_future, from_date
+    4:         events = self.store.get(user_id, [])
+    4:         for i, ev in enumerate(events):
+    2:             if ev.get('_id') == event_id:
+    2:                 del events[i]
+    2:                 return {'success': True}
+    2:         return {'success': False, 'error': 'Event not found'}
+       
+    1:     def find_free_slots(self, user_id: str, start: datetime, end: datetime, min_duration: int = 30) -> Dict:
+               # Very simple free-slot finder: returns the gaps between sorted events
+    1:         events = self.get_user_events(user_id)
+    1:         parsed = []
+    3:         for ev in events:
+    2:             parsed.append((self._parse_iso_datetime(ev['start_time']), self._parse_iso_datetime(ev['end_time'])))
+    1:         parsed.sort()
+    1:         slots = []
+    1:         cursor = start
+    3:         for s, e in parsed:
+    2:             if s > cursor and (s - cursor).total_seconds() / 60 >= min_duration:
+    2:                 slots.append((cursor.isoformat(), s.isoformat()))
+    2:             cursor = max(cursor, e)
+    1:         if end > cursor and (end - cursor).total_seconds() / 60 >= min_duration:
+    1:             slots.append((cursor.isoformat(), end.isoformat()))
+    4:         return {'success': True, 'free_slots': [{'start': a, 'end': b} for a, b in slots]}
+       
+    1:     def get_statistics(self, user_id: str, start: datetime, end: datetime) -> Dict:
+               # Minimal stub: return counts by event_type
+    2:         events = self.get_user_events(user_id, start, end)
+    2:         counts = {}
+    6:         for ev in events:
+    4:             et = ev.get('event_type', 'other')
+    4:             counts[et] = counts.get(et, 0) + 1
+    2:         return {'success': True, 'statistics': counts}
+       
+    1:     def load_user_calendar(self, user_id: str):
+               # Not needed by fallback paths in current endpoints; return a simple object with check_availability
+    2:         class SimpleCalendar:
+    1:             def __init__(self, events):
+    1:                 self.events = events
+       
+    1:             def check_availability(self, start, end):
+    3:                 for ev in self.events:
+    2:                     ev_start = InMemoryCalendarManager._parse_iso_datetime(ev['start_time'])
+    2:                     ev_end = InMemoryCalendarManager._parse_iso_datetime(ev['end_time'])
+    2:                     if not (end <= ev_start or start >= ev_end):
+    1:                         return False
+    1:                 return True
+       
+    1:         return SimpleCalendar(self.get_user_events(user_id))

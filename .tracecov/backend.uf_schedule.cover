@@ -1,0 +1,106 @@
+    1: from ics import Calendar
+       
+   70: building_code_to_url = {
+    1:     "AND": "https://campusmap.ufl.edu/#/index/0007",
+    1:     "ARC": "https://campusmap.ufl.edu/#/index/0268",
+    1:     "BAR": "https://campusmap.ufl.edu/#/index/0747",
+    1:     "BLA": "https://campusmap.ufl.edu/#/index/0724",
+    1:     "BRO": "https://campusmap.ufl.edu/#/index/0759",
+    1:     "BRY": "https://campusmap.ufl.edu/#/index/0006",
+    1:     "BUC": "https://campusmap.ufl.edu/#/index/0015",
+    1:     "CAR": "https://campusmap.ufl.edu/#/index/0022",
+    1:     "CHE": "https://campusmap.ufl.edu/#/index/0723",
+    1:     "CHM": "https://campusmap.ufl.edu/#/index/0028",
+    1:     "COM": "https://campusmap.ufl.edu/#/index/0203",
+    1:     "CSE": "https://campusmap.ufl.edu/#/index/0042",
+    1:     "CON": "https://campusmap.ufl.edu/#/index/0687",
+    1:     "CRI": "https://campusmap.ufl.edu/#/index/0031",
+    1:     "DAU": "https://campusmap.ufl.edu/#/index/0111",
+    1:     "DEN": "https://campusmap.ufl.edu/#/index/0205",
+    1:     "DIC": "https://campusmap.ufl.edu/#/index/0181",
+    1:     "EMA": "https://campusmap.ufl.edu/#/index/0060",
+    1:     "EMB": "https://campusmap.ufl.edu/#/index/0116",
+    1:     "EEL": "https://campusmap.ufl.edu/#/index/0668",
+    1:     "ELM": "https://campusmap.ufl.edu/#/index/0465",
+    1:     "ESB": "https://campusmap.ufl.edu/#/index/0725",
+    1:     "FAA": "https://campusmap.ufl.edu/#/index/0597",
+    1:     "FAB": "https://campusmap.ufl.edu/#/index/0598",
+    1:     "FAC": "https://campusmap.ufl.edu/#/index/0599",
+    1:     "FAD": "https://campusmap.ufl.edu/#/index/0269",
+    1:     "FLE": "https://campusmap.ufl.edu/#/index/0134",
+    1:     "FNT": "https://campusmap.ufl.edu/#/index/0008",
+    1:     "FLG": "https://campusmap.ufl.edu/#/index/0021",
+    1:     "FSB": "https://campusmap.ufl.edu/#/index/0475",
+    1:     "GRA": "https://campusmap.ufl.edu/#/index/0201",
+    1:     "GFH": "https://campusmap.ufl.edu/#/index/0010",
+    1:     "GRI": "https://campusmap.ufl.edu/#/index/0002",
+    1:     "HMA": "https://campusmap.ufl.edu/#/index/0309",
+    1:     "HUM": "https://campusmap.ufl.edu/#/index/0579",
+    1:     "JEN": "https://campusmap.ufl.edu/#/index/0596",
+    1:     "LAR": "https://campusmap.ufl.edu/#/index/0714",
+    1:     "LEI": "https://campusmap.ufl.edu/#/index/0009",
+    1:     "LIE": "https://campusmap.ufl.edu/#/index/0005",
+    1:     "LIW": "https://campusmap.ufl.edu/#/index/0689",
+    1:     "LIT": "https://campusmap.ufl.edu/#/index/0655",
+    1:     "MSL": "https://campusmap.ufl.edu/#/index/0043",
+    1:     "MAT": "https://campusmap.ufl.edu/#/index/0406",
+    1:     "MCA": "https://campusmap.ufl.edu/#/index/0495",
+    1:     "MCB": "https://campusmap.ufl.edu/#/index/0496",
+    1:     "MCC": "https://campusmap.ufl.edu/#/index/0497",
+    1:     "MCD": "https://campusmap.ufl.edu/#/index/0498",
+    1:     "MEB": "https://campusmap.ufl.edu/#/index/0720",
+    1:     "MEL": "https://campusmap.ufl.edu/#/index/0183",
+    1:     "MCS": "https://campusmap.ufl.edu/#/index/0226",
+    1:     "MUS": "https://campusmap.ufl.edu/#/index/0117",
+    1:     "NEW": "https://campusmap.ufl.edu/#/index/0013",
+    1:     "NZH": "https://campusmap.ufl.edu/#/index/0832",
+    1:     "NOR": "https://campusmap.ufl.edu/#/index/0101",
+    1:     "NOA": "https://campusmap.ufl.edu/#/index/0103",
+    1:     "OCC": "https://campusmap.ufl.edu/#/index/0094",
+    1:     "PEB": "https://campusmap.ufl.edu/#/index/0004",
+    1:     "PHY": "https://campusmap.ufl.edu/#/index/0104",
+    1:     "PSF": "https://campusmap.ufl.edu/#/index/1200",
+    1:     "PHE": "https://campusmap.ufl.edu/#/index/0863",
+    1:     "PSY": "https://campusmap.ufl.edu/#/index/0749",
+    1:     "PXA": "https://campusmap.ufl.edu/#/index/0294",
+    1:     "RAW": "https://campusmap.ufl.edu/#/index/0265",
+    1:     "REI": "https://campusmap.ufl.edu/#/index/0686",
+    1:     "RHI": "https://campusmap.ufl.edu/#/index/0184",
+    1:     "ROG": "https://campusmap.ufl.edu/#/index/0474",
+    1:     "ROL": "https://campusmap.ufl.edu/#/index/0012",
+    1:     "SMA": "https://campusmap.ufl.edu/#/index/0005",
+    1:     "STU": "https://campusmap.ufl.edu/#/index/0029",
+    1:     "TIG": "https://campusmap.ufl.edu/#/index/0026",
+    1:     "TUR": "https://campusmap.ufl.edu/#/index/0267",
+    1:     "VAN": "https://campusmap.ufl.edu/#/index/0023",
+    1:     "WAL": "https://campusmap.ufl.edu/#/index/0002",
+    1:     "WEI": "https://campusmap.ufl.edu/#/index/0024",
+    1:     "WIL": "https://campusmap.ufl.edu/#/index/0100"
+       }
+       
+    1: def process_ics_file(file_path):
+    6:     with open(file_path, 'r', encoding='utf-8') as file:
+    3:         content = file.read()
+       
+    3:     calendar = Calendar(content)
+    3:     results = []
+       
+    6:     for event in calendar.events:
+    3:         location = event.location if event.location else ""
+    3:         code = location[:3].upper()
+    3:         url = building_code_to_url.get(code, "No URL found for this location code")
+       
+    3:         event_info = {
+    3:             "event": event.name,
+    3:             "location_code": code,
+    3:             "location_url": url
+               }
+    3:         results.append(event_info)
+       
+    3:     return results
+       
+       # Example usage:
+       # file_path = r"D:\Downloads New\ufschedule\UFSchedule (1).ics"
+       # events = process_ics_file(file_path)
+       # for e in events:
+       #     print(e)

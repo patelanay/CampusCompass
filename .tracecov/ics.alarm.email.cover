@@ -1,0 +1,38 @@
+    1: from ics.attendee import Attendee
+    1: from ics.alarm.base import BaseAlarm
+    1: from typing import Union, List
+    1: from datetime import datetime, timedelta
+       
+    1: from ics.serializers.alarm_serializer import EmailAlarmSerializer
+    1: from ics.parsers.alarm_parser import EmailAlarmParser
+       
+       
+    2: class EmailAlarm(BaseAlarm):
+    1:     """
+           A calendar event VALARM with Email option.
+           """
+       
+    2:     class Meta:
+    1:         name = "VALARM"
+    1:         parser = EmailAlarmParser
+    1:         serializer = EmailAlarmSerializer
+       
+    1:     def __init__(
+               self,
+               trigger: Union[timedelta, datetime] = None,
+               repeat: int = None,
+               duration: timedelta = None,
+               subject: str = None,
+               body: str = None,
+               recipients: List[Attendee] = None,
+           ):
+       
+               super().__init__(trigger, repeat, duration)
+       
+               self.subject = subject
+               self.body = body
+               self.recipients = recipients if recipients else []
+       
+    2:     @property
+    2:     def action(self):
+               return "EMAIL"

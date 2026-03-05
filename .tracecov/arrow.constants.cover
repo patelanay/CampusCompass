@@ -1,0 +1,173 @@
+    1: """Constants used internally in arrow."""
+       
+    1: import sys
+    1: from datetime import datetime
+    1: from typing import Final
+       
+       # datetime.max.timestamp() errors on Windows, so we must hardcode
+       # the highest possible datetime value that can output a timestamp.
+       # tl;dr platform-independent max timestamps are hard to form
+       # See: https://stackoverflow.com/q/46133223
+    1: try:
+           # Get max timestamp. Works on POSIX-based systems like Linux and macOS,
+           # but will trigger an OverflowError, ValueError, or OSError on Windows
+    1:     _MAX_TIMESTAMP = datetime.max.timestamp()
+       except (OverflowError, ValueError, OSError):  # pragma: no cover
+           # Fallback for Windows and 32-bit systems if initial max timestamp call fails
+           # Must get max value of ctime on Windows based on architecture (x32 vs x64)
+           # https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/ctime-ctime32-ctime64-wctime-wctime32-wctime64
+           # Note: this may occur on both 32-bit Linux systems (issue #930) along with Windows systems
+           is_64bits = sys.maxsize > 2**32
+           _MAX_TIMESTAMP = (
+               datetime(3000, 1, 1, 23, 59, 59, 999999).timestamp()
+               if is_64bits
+               else datetime(2038, 1, 1, 23, 59, 59, 999999).timestamp()
+           )
+       
+    1: MAX_TIMESTAMP: Final[float] = _MAX_TIMESTAMP
+    1: MAX_TIMESTAMP_MS: Final[float] = MAX_TIMESTAMP * 1000
+    1: MAX_TIMESTAMP_US: Final[float] = MAX_TIMESTAMP * 1_000_000
+       
+    1: MAX_ORDINAL: Final[int] = datetime.max.toordinal()
+    1: MIN_ORDINAL: Final[int] = 1
+       
+    1: DEFAULT_LOCALE: Final[str] = "en-us"
+       
+       # Supported dehumanize locales
+  134: DEHUMANIZE_LOCALES = {
+    1:     "en",
+    1:     "en-us",
+    1:     "en-gb",
+    1:     "en-au",
+    1:     "en-be",
+    1:     "en-jp",
+    1:     "en-za",
+    1:     "en-ca",
+    1:     "en-ph",
+    1:     "fr",
+    1:     "fr-fr",
+    1:     "fr-ca",
+    1:     "it",
+    1:     "it-it",
+    1:     "es",
+    1:     "es-es",
+    1:     "el",
+    1:     "el-gr",
+    1:     "ja",
+    1:     "ja-jp",
+    1:     "se",
+    1:     "se-fi",
+    1:     "se-no",
+    1:     "se-se",
+    1:     "sv",
+    1:     "sv-se",
+    1:     "fi",
+    1:     "fi-fi",
+    1:     "zh",
+    1:     "zh-cn",
+    1:     "zh-tw",
+    1:     "zh-hk",
+    1:     "nl",
+    1:     "nl-nl",
+    1:     "be",
+    1:     "be-by",
+    1:     "pl",
+    1:     "pl-pl",
+    1:     "ru",
+    1:     "ru-ru",
+    1:     "af",
+    1:     "bg",
+    1:     "bg-bg",
+    1:     "ua",
+    1:     "uk",
+    1:     "uk-ua",
+    1:     "mk",
+    1:     "mk-mk",
+    1:     "de",
+    1:     "de-de",
+    1:     "de-ch",
+    1:     "de-at",
+    1:     "nb",
+    1:     "nb-no",
+    1:     "nn",
+    1:     "nn-no",
+    1:     "pt",
+    1:     "pt-pt",
+    1:     "pt-br",
+    1:     "tl",
+    1:     "tl-ph",
+    1:     "vi",
+    1:     "vi-vn",
+    1:     "tr",
+    1:     "tr-tr",
+    1:     "az",
+    1:     "az-az",
+    1:     "da",
+    1:     "da-dk",
+    1:     "ml",
+    1:     "hi",
+    1:     "cs",
+    1:     "cs-cz",
+    1:     "sk",
+    1:     "sk-sk",
+    1:     "fa",
+    1:     "fa-ir",
+    1:     "mr",
+    1:     "ca",
+    1:     "ca-es",
+    1:     "ca-ad",
+    1:     "ca-fr",
+    1:     "ca-it",
+    1:     "eo",
+    1:     "eo-xx",
+    1:     "bn",
+    1:     "bn-bd",
+    1:     "bn-in",
+    1:     "rm",
+    1:     "rm-ch",
+    1:     "ro",
+    1:     "ro-ro",
+    1:     "sl",
+    1:     "sl-si",
+    1:     "id",
+    1:     "id-id",
+    1:     "ne",
+    1:     "ne-np",
+    1:     "ee",
+    1:     "et",
+    1:     "sw",
+    1:     "sw-ke",
+    1:     "sw-tz",
+    1:     "la",
+    1:     "la-va",
+    1:     "lt",
+    1:     "lt-lt",
+    1:     "ms",
+    1:     "ms-my",
+    1:     "ms-bn",
+    1:     "or",
+    1:     "or-in",
+    1:     "lb",
+    1:     "lb-lu",
+    1:     "zu",
+    1:     "zu-za",
+    1:     "sq",
+    1:     "sq-al",
+    1:     "ta",
+    1:     "ta-in",
+    1:     "ta-lk",
+    1:     "ur",
+    1:     "ur-pk",
+    1:     "ka",
+    1:     "ka-ge",
+    1:     "kk",
+    1:     "kk-kz",
+           # "lo",
+           # "lo-la",
+    1:     "am",
+    1:     "am-et",
+    1:     "hy-am",
+    1:     "hy",
+    1:     "uz",
+    1:     "uz-uz",
+       }

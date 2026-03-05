@@ -1,0 +1,193 @@
+    1: import inspect
+    1: import sys
+    1: from dataclasses import dataclass, field
+    1: from functools import cached_property, partial
+    1: from typing import Any, Callable, Optional, Union
+       
+    1: from fastapi._compat import ModelField
+    1: from fastapi.security.base import SecurityBase
+    1: from fastapi.types import DependencyCacheKey
+    1: from typing_extensions import Literal
+       
+    1: if sys.version_info >= (3, 13):  # pragma: no cover
+    1:     from inspect import iscoroutinefunction
+       else:  # pragma: no cover
+           from asyncio import iscoroutinefunction
+       
+       
+    1: def _unwrapped_call(call: Optional[Callable[..., Any]]) -> Any:
+   29:     if call is None:
+               return call  # pragma: no cover
+   29:     unwrapped = inspect.unwrap(_impartial(call))
+   29:     return unwrapped
+       
+       
+    1: def _impartial(func: Callable[..., Any]) -> Callable[..., Any]:
+   69:     while isinstance(func, partial):
+               func = func.func
+   69:     return func
+       
+       
+   24: @dataclass
+    2: class Dependant:
+    2:     path_params: list[ModelField] = field(default_factory=list)
+    2:     query_params: list[ModelField] = field(default_factory=list)
+    2:     header_params: list[ModelField] = field(default_factory=list)
+    2:     cookie_params: list[ModelField] = field(default_factory=list)
+    2:     body_params: list[ModelField] = field(default_factory=list)
+    2:     dependencies: list["Dependant"] = field(default_factory=list)
+    2:     name: Optional[str] = None
+    2:     call: Optional[Callable[..., Any]] = None
+    2:     request_param_name: Optional[str] = None
+    2:     websocket_param_name: Optional[str] = None
+    2:     http_connection_param_name: Optional[str] = None
+    2:     response_param_name: Optional[str] = None
+    2:     background_tasks_param_name: Optional[str] = None
+    2:     security_scopes_param_name: Optional[str] = None
+    2:     own_oauth_scopes: Optional[list[str]] = None
+    2:     parent_oauth_scopes: Optional[list[str]] = None
+    2:     use_cache: bool = True
+    2:     path: Optional[str] = None
+    2:     scope: Union[Literal["function", "request"], None] = None
+       
+    2:     @cached_property
+    2:     def oauth_scopes(self) -> list[str]:
+   17:         scopes = self.parent_oauth_scopes.copy() if self.parent_oauth_scopes else []
+               # This doesn't use a set to preserve order, just in case
+   17:         for scope in self.own_oauth_scopes or []:
+                   if scope not in scopes:
+                       scopes.append(scope)
+   17:         return scopes
+       
+    2:     @cached_property
+    2:     def cache_key(self) -> DependencyCacheKey:
+   17:         scopes_for_cache = (
+   17:             tuple(sorted(set(self.oauth_scopes or []))) if self._uses_scopes else ()
+               )
+   17:         return (
+   17:             self.call,
+   17:             scopes_for_cache,
+   17:             self.computed_scope or "",
+               )
+       
+    2:     @cached_property
+    2:     def _uses_scopes(self) -> bool:
+   17:         if self.own_oauth_scopes:
+                   return True
+   17:         if self.security_scopes_param_name is not None:
+                   return True
+   17:         if self._is_security_scheme:
+                   return True
+   17:         for sub_dep in self.dependencies:
+                   if sub_dep._uses_scopes:
+                       return True
+   17:         return False
+       
+    2:     @cached_property
+    2:     def _is_security_scheme(self) -> bool:
+   17:         if self.call is None:
+                   return False  # pragma: no cover
+   17:         unwrapped = _unwrapped_call(self.call)
+   17:         return isinstance(unwrapped, SecurityBase)
+       
+           # Mainly to get the type of SecurityBase, but it's the same self.call
+    2:     @cached_property
+    2:     def _security_scheme(self) -> SecurityBase:
+               unwrapped = _unwrapped_call(self.call)
+               assert isinstance(unwrapped, SecurityBase)
+               return unwrapped
+       
+    2:     @cached_property
+    2:     def _security_dependencies(self) -> list["Dependant"]:
+               security_deps = [dep for dep in self.dependencies if dep._is_security_scheme]
+               return security_deps
+       
+    2:     @cached_property
+    2:     def is_gen_callable(self) -> bool:
+               if self.call is None:
+                   return False  # pragma: no cover
+               if inspect.isgeneratorfunction(
+                   _impartial(self.call)
+               ) or inspect.isgeneratorfunction(_unwrapped_call(self.call)):
+                   return True
+               if inspect.isclass(_unwrapped_call(self.call)):
+                   return False
+               dunder_call = getattr(_impartial(self.call), "__call__", None)  # noqa: B004
+               if dunder_call is None:
+                   return False  # pragma: no cover
+               if inspect.isgeneratorfunction(
+                   _impartial(dunder_call)
+               ) or inspect.isgeneratorfunction(_unwrapped_call(dunder_call)):
+                   return True
+               dunder_unwrapped_call = getattr(_unwrapped_call(self.call), "__call__", None)  # noqa: B004
+               if dunder_unwrapped_call is None:
+                   return False  # pragma: no cover
+               if inspect.isgeneratorfunction(
+                   _impartial(dunder_unwrapped_call)
+               ) or inspect.isgeneratorfunction(_unwrapped_call(dunder_unwrapped_call)):
+                   return True
+               return False
+       
+    2:     @cached_property
+    2:     def is_async_gen_callable(self) -> bool:
+               if self.call is None:
+                   return False  # pragma: no cover
+               if inspect.isasyncgenfunction(
+                   _impartial(self.call)
+               ) or inspect.isasyncgenfunction(_unwrapped_call(self.call)):
+                   return True
+               if inspect.isclass(_unwrapped_call(self.call)):
+                   return False
+               dunder_call = getattr(_impartial(self.call), "__call__", None)  # noqa: B004
+               if dunder_call is None:
+                   return False  # pragma: no cover
+               if inspect.isasyncgenfunction(
+                   _impartial(dunder_call)
+               ) or inspect.isasyncgenfunction(_unwrapped_call(dunder_call)):
+                   return True
+               dunder_unwrapped_call = getattr(_unwrapped_call(self.call), "__call__", None)  # noqa: B004
+               if dunder_unwrapped_call is None:
+                   return False  # pragma: no cover
+               if inspect.isasyncgenfunction(
+                   _impartial(dunder_unwrapped_call)
+               ) or inspect.isasyncgenfunction(_unwrapped_call(dunder_unwrapped_call)):
+                   return True
+               return False
+       
+    2:     @cached_property
+    2:     def is_coroutine_callable(self) -> bool:
+   17:         if self.call is None:
+                   return False  # pragma: no cover
+   34:         if inspect.isroutine(_impartial(self.call)) and iscoroutinefunction(
+   17:             _impartial(self.call)
+               ):
+   15:             return True
+    4:         if inspect.isroutine(_unwrapped_call(self.call)) and iscoroutinefunction(
+    2:             _unwrapped_call(self.call)
+               ):
+                   return True
+    2:         if inspect.isclass(_unwrapped_call(self.call)):
+                   return False
+    2:         dunder_call = getattr(_impartial(self.call), "__call__", None)  # noqa: B004
+    2:         if dunder_call is None:
+                   return False  # pragma: no cover
+    4:         if iscoroutinefunction(_impartial(dunder_call)) or iscoroutinefunction(
+    2:             _unwrapped_call(dunder_call)
+               ):
+                   return True
+    2:         dunder_unwrapped_call = getattr(_unwrapped_call(self.call), "__call__", None)  # noqa: B004
+    2:         if dunder_unwrapped_call is None:
+                   return False  # pragma: no cover
+    4:         if iscoroutinefunction(
+    2:             _impartial(dunder_unwrapped_call)
+    2:         ) or iscoroutinefunction(_unwrapped_call(dunder_unwrapped_call)):
+                   return True
+    2:         return False
+       
+    2:     @cached_property
+    2:     def computed_scope(self) -> Union[str, None]:
+   17:         if self.scope:
+   17:             return self.scope
+               if self.is_gen_callable or self.is_async_gen_callable:
+                   return "request"
+               return None

@@ -1,0 +1,77 @@
+    1: import unittest
+    1: from datetime import datetime, timezone
+       
+    1: from fastapi import HTTPException
+       
+    1: from backend import main
+       
+       
+    2: class MainHelpersTests(unittest.TestCase):
+    1:     def tearDown(self):
+    9:         main.user_taskbars.clear()
+       
+    1:     def test_model_to_dict_supports_pydantic_models(self):
+    1:         payload = main.TaskCreate(user_id="user-1", title="Test task")
+    1:         serialized = main._model_to_dict(payload)
+    1:         self.assertEqual(serialized["user_id"], "user-1")
+    1:         self.assertEqual(serialized["title"], "Test task")
+       
+    1:     def test_parse_iso_datetime_accepts_z_timezone(self):
+    1:         parsed = main._parse_iso_datetime("2026-03-05T10:00:00Z", "start")
+    1:         self.assertEqual(parsed.tzinfo, timezone.utc)
+    1:         self.assertEqual(parsed.hour, 10)
+       
+    1:     def test_parse_iso_datetime_rejects_invalid_value(self):
+    2:         with self.assertRaises(HTTPException) as context:
+    1:             main._parse_iso_datetime("invalid", "start")
+    1:         self.assertEqual(context.exception.status_code, 422)
+       
+    1:     def test_coerce_datetime_converts_naive_datetime_to_utc(self):
+    1:         parsed = main._coerce_datetime(datetime(2026, 3, 5, 10, 0), "start")
+    1:         self.assertEqual(parsed.tzinfo, timezone.utc)
+       
+    1:     def test_coerce_datetime_rejects_unknown_type(self):
+    2:         with self.assertRaises(HTTPException) as context:
+    1:             main._coerce_datetime(1234, "start")
+    1:         self.assertEqual(context.exception.status_code, 422)
+       
+    1:     def test_format_event_normalizes_datetime_and_defaults(self):
+    1:         event = {
+    1:             "_id": "event-1",
+    1:             "user_id": "user-1",
+    1:             "title": "Exam",
+    1:             "start_time": datetime(2026, 3, 5, 9, 0, tzinfo=timezone.utc),
+    1:             "end_time": datetime(2026, 3, 5, 10, 0, tzinfo=timezone.utc),
+    1:             "event_type": "exam",
+    1:             "recurrence_end_date": datetime(2026, 4, 1, 0, 0, tzinfo=timezone.utc),
+               }
+       
+    1:         formatted = main._format_event(event)
+    1:         self.assertEqual(formatted["id"], "event-1")
+    1:         self.assertTrue(formatted["start_time"].endswith("+00:00"))
+    1:         self.assertEqual(formatted["color"], "#3498db")
+    1:         self.assertEqual(formatted["recurrence"], "none")
+       
+    1:     def test_require_calendar_manager_raises_when_unavailable(self):
+    1:         original = main.calendar_manager
+    1:         main.calendar_manager = None
+    1:         try:
+    2:             with self.assertRaises(HTTPException) as context:
+    1:                 main._require_calendar_manager()
+    1:             self.assertEqual(context.exception.status_code, 503)
+               finally:
+    1:             main.calendar_manager = original
+       
+    1:     def test_get_or_create_taskbar_creates_and_reuses(self):
+    1:         first = main._get_or_create_taskbar("user-1")
+    1:         second = main._get_or_create_taskbar("user-1")
+    1:         self.assertIs(first, second)
+       
+    1:     def test_get_existing_taskbar_raises_for_missing_user(self):
+    2:         with self.assertRaises(HTTPException) as context:
+    1:             main._get_existing_taskbar("missing-user")
+    1:         self.assertEqual(context.exception.status_code, 404)
+       
+       
+    1: if __name__ == "__main__":
+           unittest.main()

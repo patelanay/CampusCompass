@@ -1,0 +1,224 @@
+       # Copyright 2021-present MongoDB, Inc.
+       #
+       # Licensed under the Apache License, Version 2.0 (the "License");
+       # you may not use this file except in compliance with the License.
+       # You may obtain a copy of the License at
+       #
+       # https://www.apache.org/licenses/LICENSE-2.0
+       #
+       # Unless required by applicable law or agreed to in writing, software
+       # distributed under the License is distributed on an "AS IS" BASIS,
+       # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+       # See the License for the specific language governing permissions and
+       # limitations under the License.
+       
+    1: """Helpers for the 'hello' and legacy hello commands."""
+    1: from __future__ import annotations
+       
+    1: import copy
+    1: import datetime
+    1: import itertools
+    1: from typing import Any, Generic, Mapping, Optional
+       
+    1: from bson.objectid import ObjectId
+    1: from pymongo import common
+    1: from pymongo.server_type import SERVER_TYPE
+    1: from pymongo.typings import ClusterTime, _DocumentType
+       
+       
+    1: def _get_server_type(doc: Mapping[str, Any]) -> int:
+           """Determine the server type from a hello response."""
+           if not doc.get("ok"):
+               return SERVER_TYPE.Unknown
+       
+           if doc.get("serviceId"):
+               return SERVER_TYPE.LoadBalancer
+           elif doc.get("isreplicaset"):
+               return SERVER_TYPE.RSGhost
+           elif doc.get("setName"):
+               if doc.get("hidden"):
+                   return SERVER_TYPE.RSOther
+               elif doc.get(HelloCompat.PRIMARY):
+                   return SERVER_TYPE.RSPrimary
+               elif doc.get(HelloCompat.LEGACY_PRIMARY):
+                   return SERVER_TYPE.RSPrimary
+               elif doc.get("secondary"):
+                   return SERVER_TYPE.RSSecondary
+               elif doc.get("arbiterOnly"):
+                   return SERVER_TYPE.RSArbiter
+               else:
+                   return SERVER_TYPE.RSOther
+           elif doc.get("msg") == "isdbgrid":
+               return SERVER_TYPE.Mongos
+           else:
+               return SERVER_TYPE.Standalone
+       
+       
+    2: class HelloCompat:
+    1:     CMD = "hello"
+    1:     LEGACY_CMD = "ismaster"
+    1:     PRIMARY = "isWritablePrimary"
+    1:     LEGACY_PRIMARY = "ismaster"
+    1:     LEGACY_ERROR = "not master"
+       
+       
+    2: class Hello(Generic[_DocumentType]):
+    1:     """Parse a hello response from the server.
+       
+           .. versionadded:: 3.12
+           """
+       
+    1:     __slots__ = ("_doc", "_server_type", "_is_writable", "_is_readable", "_awaitable")
+       
+    1:     def __init__(self, doc: _DocumentType, awaitable: bool = False) -> None:
+               self._server_type = _get_server_type(doc)
+               self._doc: _DocumentType = doc
+               self._is_writable = self._server_type in (
+                   SERVER_TYPE.RSPrimary,
+                   SERVER_TYPE.Standalone,
+                   SERVER_TYPE.Mongos,
+                   SERVER_TYPE.LoadBalancer,
+               )
+       
+               self._is_readable = self.server_type == SERVER_TYPE.RSSecondary or self._is_writable
+               self._awaitable = awaitable
+       
+    2:     @property
+    2:     def document(self) -> _DocumentType:
+               """The complete hello command response document.
+       
+               .. versionadded:: 3.4
+               """
+               return copy.copy(self._doc)
+       
+    2:     @property
+    2:     def server_type(self) -> int:
+               return self._server_type
+       
+    2:     @property
+    2:     def all_hosts(self) -> set[tuple[str, int]]:
+               """List of hosts, passives, and arbiters known to this server."""
+               return set(
+                   map(
+                       common.clean_node,
+                       itertools.chain(
+                           self._doc.get("hosts", []),
+                           self._doc.get("passives", []),
+                           self._doc.get("arbiters", []),
+                       ),
+                   )
+               )
+       
+    2:     @property
+    2:     def tags(self) -> Mapping[str, Any]:
+               """Replica set member tags or empty dict."""
+               return self._doc.get("tags", {})
+       
+    2:     @property
+    2:     def primary(self) -> Optional[tuple[str, int]]:
+               """This server's opinion about who the primary is, or None."""
+               if self._doc.get("primary"):
+                   return common.partition_node(self._doc["primary"])
+               else:
+                   return None
+       
+    2:     @property
+    2:     def replica_set_name(self) -> Optional[str]:
+               """Replica set name or None."""
+               return self._doc.get("setName")
+       
+    2:     @property
+    2:     def max_bson_size(self) -> int:
+               return self._doc.get("maxBsonObjectSize", common.MAX_BSON_SIZE)
+       
+    2:     @property
+    2:     def max_message_size(self) -> int:
+               return self._doc.get("maxMessageSizeBytes", common.MAX_MESSAGE_SIZE)
+       
+    2:     @property
+    2:     def max_write_batch_size(self) -> int:
+               return self._doc.get("maxWriteBatchSize", common.MAX_WRITE_BATCH_SIZE)
+       
+    2:     @property
+    2:     def min_wire_version(self) -> int:
+               return self._doc.get("minWireVersion", common.MIN_WIRE_VERSION)
+       
+    2:     @property
+    2:     def max_wire_version(self) -> int:
+               return self._doc.get("maxWireVersion", common.MAX_WIRE_VERSION)
+       
+    2:     @property
+    2:     def set_version(self) -> Optional[int]:
+               return self._doc.get("setVersion")
+       
+    2:     @property
+    2:     def election_id(self) -> Optional[ObjectId]:
+               return self._doc.get("electionId")
+       
+    2:     @property
+    2:     def cluster_time(self) -> Optional[ClusterTime]:
+               return self._doc.get("$clusterTime")
+       
+    2:     @property
+    2:     def logical_session_timeout_minutes(self) -> Optional[int]:
+               return self._doc.get("logicalSessionTimeoutMinutes")
+       
+    2:     @property
+    2:     def is_writable(self) -> bool:
+               return self._is_writable
+       
+    2:     @property
+    2:     def is_readable(self) -> bool:
+               return self._is_readable
+       
+    2:     @property
+    2:     def me(self) -> Optional[tuple[str, int]]:
+               me = self._doc.get("me")
+               if me:
+                   return common.clean_node(me)
+               return None
+       
+    2:     @property
+    2:     def last_write_date(self) -> Optional[datetime.datetime]:
+               return self._doc.get("lastWrite", {}).get("lastWriteDate")
+       
+    2:     @property
+    2:     def compressors(self) -> Optional[list[str]]:
+               return self._doc.get("compression")
+       
+    2:     @property
+    2:     def sasl_supported_mechs(self) -> list[str]:
+               """Supported authentication mechanisms for the current user.
+       
+               For example::
+       
+                   >>> hello.sasl_supported_mechs
+                   ["SCRAM-SHA-1", "SCRAM-SHA-256"]
+       
+               """
+               return self._doc.get("saslSupportedMechs", [])
+       
+    2:     @property
+    2:     def speculative_authenticate(self) -> Optional[Mapping[str, Any]]:
+               """The speculativeAuthenticate field."""
+               return self._doc.get("speculativeAuthenticate")
+       
+    2:     @property
+    2:     def topology_version(self) -> Optional[Mapping[str, Any]]:
+               return self._doc.get("topologyVersion")
+       
+    2:     @property
+    2:     def awaitable(self) -> bool:
+               return self._awaitable
+       
+    2:     @property
+    2:     def service_id(self) -> Optional[ObjectId]:
+               return self._doc.get("serviceId")
+       
+    2:     @property
+    2:     def hello_ok(self) -> bool:
+               return self._doc.get("helloOk", False)
+       
+    2:     @property
+    2:     def connection_id(self) -> Optional[int]:
+               return self._doc.get("connectionId")

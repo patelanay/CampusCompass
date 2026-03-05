@@ -1,0 +1,108 @@
+       # Copyright 2016 Google LLC
+       #
+       # Licensed under the Apache License, Version 2.0 (the "License");
+       # you may not use this file except in compliance with the License.
+       # You may obtain a copy of the License at
+       #
+       #      http://www.apache.org/licenses/LICENSE-2.0
+       #
+       # Unless required by applicable law or agreed to in writing, software
+       # distributed under the License is distributed on an "AS IS" BASIS,
+       # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+       # See the License for the specific language governing permissions and
+       # limitations under the License.
+       
+    1: """Exceptions used in the google.auth package."""
+       
+       
+    2: class GoogleAuthError(Exception):
+    1:     """Base class for all google.auth errors."""
+       
+    1:     def __init__(self, *args, **kwargs):
+               super(GoogleAuthError, self).__init__(*args)
+               retryable = kwargs.get("retryable", False)
+               self._retryable = retryable
+       
+    2:     @property
+    2:     def retryable(self):
+               return self._retryable
+       
+       
+    2: class TransportError(GoogleAuthError):
+    1:     """Used to indicate an error occurred during an HTTP request."""
+       
+       
+    2: class RefreshError(GoogleAuthError):
+    1:     """Used to indicate that an refreshing the credentials' access token
+           failed."""
+       
+       
+    2: class UserAccessTokenError(GoogleAuthError):
+    1:     """Used to indicate ``gcloud auth print-access-token`` command failed."""
+       
+       
+    2: class DefaultCredentialsError(GoogleAuthError):
+    1:     """Used to indicate that acquiring default credentials failed."""
+       
+       
+    2: class MutualTLSChannelError(GoogleAuthError):
+    1:     """Used to indicate that mutual TLS channel creation is failed, or mutual
+           TLS channel credentials is missing or invalid."""
+       
+       
+    2: class ClientCertError(GoogleAuthError):
+    1:     """Used to indicate that client certificate is missing or invalid."""
+       
+    2:     @property
+    2:     def retryable(self):
+               return False
+       
+       
+    2: class OAuthError(GoogleAuthError):
+    1:     """Used to indicate an error occurred during an OAuth related HTTP
+           request."""
+       
+       
+    2: class ReauthFailError(RefreshError):
+    1:     """An exception for when reauth failed."""
+       
+    1:     def __init__(self, message=None, **kwargs):
+               super(ReauthFailError, self).__init__(
+                   "Reauthentication failed. {0}".format(message), **kwargs
+               )
+       
+       
+    2: class ReauthSamlChallengeFailError(ReauthFailError):
+    1:     """An exception for SAML reauth challenge failures."""
+       
+       
+    2: class MalformedError(DefaultCredentialsError, ValueError):
+    1:     """An exception for malformed data."""
+       
+       
+    2: class InvalidResource(DefaultCredentialsError, ValueError):
+    1:     """An exception for URL error."""
+       
+       
+    2: class InvalidOperation(DefaultCredentialsError, ValueError):
+    1:     """An exception for invalid operation."""
+       
+       
+    2: class InvalidValue(DefaultCredentialsError, ValueError):
+    1:     """Used to wrap general ValueError of python."""
+       
+       
+    2: class InvalidType(DefaultCredentialsError, TypeError):
+    1:     """Used to wrap general TypeError of python."""
+       
+       
+    2: class OSError(DefaultCredentialsError, EnvironmentError):
+    1:     """Used to wrap EnvironmentError(OSError after python3.3)."""
+       
+       
+    2: class TimeoutError(GoogleAuthError):
+    1:     """Used to indicate a timeout error occurred during an HTTP request."""
+       
+       
+    2: class ResponseError(GoogleAuthError):
+    1:     """Used to indicate an error occurred when reading an HTTP response."""

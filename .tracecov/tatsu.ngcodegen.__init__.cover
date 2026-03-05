@@ -1,0 +1,8 @@
+    1: from ..objectmodel import ParseModel
+    1: from .python import PythonCodeGenerator
+       
+       
+    1: def codegen(model: ParseModel, parser_name: str = '') -> str:
+           generator = PythonCodeGenerator(parser_name=parser_name)
+           generator.walk(model)
+           return generator.printed_text()

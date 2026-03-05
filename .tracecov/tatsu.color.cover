@@ -1,0 +1,56 @@
+       # ruff: noqa: PLW0603
+    1: from __future__ import annotations
+       
+       
+    2: class _BF:
+    1:     BLACK = ''
+    1:     BLUE = ''
+    1:     CYAN = ''
+    1:     GREEN = ''
+    1:     MAGENTA = ''
+    1:     RED = ''
+    1:     RESET = ''
+    1:     WHITE = ''
+    1:     YELLOW = ''
+    1:     LIGHTBLACK_EX = ''
+    1:     LIGHTRED_EX = ''
+    1:     LIGHTGREEN_EX = ''
+    1:     LIGHTYELLOW_EX = ''
+    1:     LIGHTBLUE_EX = ''
+    1:     LIGHTMAGENTA_EX = ''
+    1:     LIGHTCYAN_EX = ''
+    1:     LIGHTWHITE_EX = ''
+       
+       
+    2: class _Fore(_BF):
+    1:     pass
+       
+       
+    2: class _Back(_BF):
+    1:     pass
+       
+       
+    2: class _Style:
+    1:     BRIGHT = ''
+    1:     DIM = ''
+    1:     NORMAL = ''
+    1:     RESET_ALL = ''
+       
+       
+    1: Fore = _Fore
+    1: Back = _Back
+    1: Style = _Style
+       
+       
+    1: def init():
+   30:     try:
+   30:         import colorama
+       
+               colorama.init()
+   30:     except ImportError:
+   30:         return
+       
+           global Fore, Back, Style  # pylint: disable=global-statement
+           Fore = colorama.Fore
+           Back = colorama.Back
+           Style = colorama.Style

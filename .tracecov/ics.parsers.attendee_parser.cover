@@ -1,0 +1,34 @@
+    1: from ics.parsers.parser import Parser
+    1: from ics.utils import unescape_string
+       
+       
+    2: class PersonParser(Parser):
+    1:     def parse_cn(person: "Person", value):
+               if value:
+                   person.common_name = unescape_string(value)
+       
+    1:     def parse_dir(person: "Person", value):
+               if value:
+                   person.dir = unescape_string(value)
+       
+    1:     def parse_sent_by(person: "Person", value):
+               if value:
+                   person.sent_by = unescape_string(value)
+       
+       
+    2: class AttendeeParser(PersonParser):
+    1:     def parse_rsvp(attendee: "Attendee", value):
+               if value:
+                   attendee.rsvp = bool(value)
+       
+    1:     def parse_role(attendee: "Attendee", value):
+               if value:
+                   attendee.role = unescape_string(value)
+       
+    1:     def parse_partstat(attendee: "Attendee", value):
+               if value:
+                   attendee.partstat = unescape_string(value)
+       
+    1:     def parse_cutype(attendee: "Attendee", value):
+               if value:
+                   attendee.cutype = unescape_string(value)

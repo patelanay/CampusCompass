@@ -1,0 +1,206 @@
+    1: import sys
+    1: import types
+    1: import typing
+    1: import warnings
+    1: from collections import deque
+    1: from collections.abc import Mapping, Sequence
+    1: from dataclasses import is_dataclass
+    1: from typing import (
+           Annotated,
+           Any,
+           Union,
+       )
+       
+    1: from fastapi.types import UnionType
+    1: from pydantic import BaseModel
+    1: from pydantic.version import VERSION as PYDANTIC_VERSION
+    1: from starlette.datastructures import UploadFile
+    1: from typing_extensions import get_args, get_origin
+       
+       # Copy from Pydantic v2, compatible with v1
+    1: if sys.version_info < (3, 10):
+           WithArgsTypes: tuple[Any, ...] = (typing._GenericAlias, types.GenericAlias)  # type: ignore[attr-defined]
+       else:
+    1:     WithArgsTypes: tuple[Any, ...] = (
+    1:         typing._GenericAlias,  # type: ignore[attr-defined]
+    1:         types.GenericAlias,
+    1:         types.UnionType,
+           )  # pyright: ignore[reportAttributeAccessIssue]
+       
+    6: PYDANTIC_VERSION_MINOR_TUPLE = tuple(int(x) for x in PYDANTIC_VERSION.split(".")[:2])
+    1: PYDANTIC_V2 = PYDANTIC_VERSION_MINOR_TUPLE[0] == 2
+       
+       
+    1: sequence_annotation_to_type = {
+    1:     Sequence: list,
+    1:     list: list,
+    1:     tuple: tuple,
+    1:     set: set,
+    1:     frozenset: frozenset,
+    1:     deque: deque,
+       }
+       
+    1: sequence_types = tuple(sequence_annotation_to_type.keys())
+       
+    1: Url: type[Any]
+       
+       
+       # Copy of Pydantic v2, compatible with v1
+    1: def lenient_issubclass(
+           cls: Any, class_or_tuple: Union[type[Any], tuple[type[Any], ...], None]
+       ) -> bool:
+  777:     try:
+  777:         return isinstance(cls, type) and issubclass(cls, class_or_tuple)  # type: ignore[arg-type]
+           except TypeError:  # pragma: no cover
+               if isinstance(cls, WithArgsTypes):
+                   return False
+               raise  # pragma: no cover
+       
+       
+    1: def _annotation_is_sequence(annotation: Union[type[Any], None]) -> bool:
+  208:     if lenient_issubclass(annotation, (str, bytes)):
+   46:         return False
+  162:     return lenient_issubclass(annotation, sequence_types)
+       
+       
+    1: def field_annotation_is_sequence(annotation: Union[type[Any], None]) -> bool:
+   74:     origin = get_origin(annotation)
+   74:     if origin is Union or origin is UnionType:
+   12:         for arg in get_args(annotation):
+    8:             if field_annotation_is_sequence(arg):
+                       return True
+    4:         return False
+  140:     return _annotation_is_sequence(annotation) or _annotation_is_sequence(
+   70:         get_origin(annotation)
+           )
+       
+       
+    1: def value_is_sequence(value: Any) -> bool:
+           return isinstance(value, sequence_types) and not isinstance(value, (str, bytes))
+       
+       
+    1: def _annotation_is_complex(annotation: Union[type[Any], None]) -> bool:
+   74:     return (
+  142:         lenient_issubclass(annotation, (BaseModel, Mapping, UploadFile))
+   68:         or _annotation_is_sequence(annotation)
+   68:         or is_dataclass(annotation)
+           )
+       
+       
+    1: def field_annotation_is_complex(annotation: Union[type[Any], None]) -> bool:
+   44:     origin = get_origin(annotation)
+   44:     if origin is Union or origin is UnionType:
+   24:         return any(field_annotation_is_complex(arg) for arg in get_args(annotation))
+       
+   40:     if origin is Annotated:
+               return field_annotation_is_complex(get_args(annotation)[0])
+       
+   40:     return (
+  108:         _annotation_is_complex(annotation)
+   34:         or _annotation_is_complex(origin)
+   34:         or hasattr(origin, "__pydantic_core_schema__")
+   34:         or hasattr(origin, "__get_pydantic_core_schema__")
+           )
+       
+       
+    1: def field_annotation_is_scalar(annotation: Any) -> bool:
+           # handle Ellipsis here to make tuple[int, ...] work nicely
+   36:     return annotation is Ellipsis or not field_annotation_is_complex(annotation)
+       
+       
+    1: def field_annotation_is_scalar_sequence(annotation: Union[type[Any], None]) -> bool:
+           origin = get_origin(annotation)
+           if origin is Union or origin is UnionType:
+               at_least_one_scalar_sequence = False
+               for arg in get_args(annotation):
+                   if field_annotation_is_scalar_sequence(arg):
+                       at_least_one_scalar_sequence = True
+                       continue
+                   elif not field_annotation_is_scalar(arg):
+                       return False
+               return at_least_one_scalar_sequence
+           return field_annotation_is_sequence(annotation) and all(
+               field_annotation_is_scalar(sub_annotation)
+               for sub_annotation in get_args(annotation)
+           )
+       
+       
+    1: def is_bytes_or_nonable_bytes_annotation(annotation: Any) -> bool:
+           if lenient_issubclass(annotation, bytes):
+               return True
+           origin = get_origin(annotation)
+           if origin is Union or origin is UnionType:
+               for arg in get_args(annotation):
+                   if lenient_issubclass(arg, bytes):
+                       return True
+           return False
+       
+       
+    1: def is_uploadfile_or_nonable_uploadfile_annotation(annotation: Any) -> bool:
+    6:     if lenient_issubclass(annotation, UploadFile):
+               return True
+    6:     origin = get_origin(annotation)
+    6:     if origin is Union or origin is UnionType:
+               for arg in get_args(annotation):
+                   if lenient_issubclass(arg, UploadFile):
+                       return True
+    6:     return False
+       
+       
+    1: def is_bytes_sequence_annotation(annotation: Any) -> bool:
+           origin = get_origin(annotation)
+           if origin is Union or origin is UnionType:
+               at_least_one = False
+               for arg in get_args(annotation):
+                   if is_bytes_sequence_annotation(arg):
+                       at_least_one = True
+                       continue
+               return at_least_one
+           return field_annotation_is_sequence(annotation) and all(
+               is_bytes_or_nonable_bytes_annotation(sub_annotation)
+               for sub_annotation in get_args(annotation)
+           )
+       
+       
+    1: def is_uploadfile_sequence_annotation(annotation: Any) -> bool:
+    6:     origin = get_origin(annotation)
+    6:     if origin is Union or origin is UnionType:
+               at_least_one = False
+               for arg in get_args(annotation):
+                   if is_uploadfile_sequence_annotation(arg):
+                       at_least_one = True
+                       continue
+               return at_least_one
+    6:     return field_annotation_is_sequence(annotation) and all(
+               is_uploadfile_or_nonable_uploadfile_annotation(sub_annotation)
+               for sub_annotation in get_args(annotation)
+           )
+       
+       
+    1: def is_pydantic_v1_model_instance(obj: Any) -> bool:
+           with warnings.catch_warnings():
+               warnings.simplefilter("ignore", UserWarning)
+               from pydantic import v1
+           return isinstance(obj, v1.BaseModel)
+       
+       
+    1: def is_pydantic_v1_model_class(cls: Any) -> bool:
+  136:     with warnings.catch_warnings():
+   68:         warnings.simplefilter("ignore", UserWarning)
+   68:         from pydantic import v1
+   68:     return lenient_issubclass(cls, v1.BaseModel)
+       
+       
+    1: def annotation_is_pydantic_v1(annotation: Any) -> bool:
+   60:     if is_pydantic_v1_model_class(annotation):
+               return True
+   60:     origin = get_origin(annotation)
+   60:     if origin is Union or origin is UnionType:
+   12:         for arg in get_args(annotation):
+    8:             if is_pydantic_v1_model_class(arg):
+                       return True
+   60:     if field_annotation_is_sequence(annotation):
+    8:         for sub_annotation in get_args(annotation):
+    4:             if annotation_is_pydantic_v1(sub_annotation):
+                       return True
+   60:     return False

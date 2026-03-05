@@ -1,0 +1,80 @@
+    1: from dateutil.tz import tzical
+    1: from six import StringIO
+       
+    1: from ics.event import Event
+    1: from ics.grammar.parse import ContentLine
+    1: from ics.parsers.parser import Parser, option
+    1: from ics.todo import Todo
+    1: from ics.utils import remove_sequence, remove_x
+       
+       
+    2: class CalendarParser(Parser):
+    2:     @option(required=True)
+    2:     def parse_prodid(calendar, prodid):
+    3:         calendar._creator = prodid.value
+       
+    1:     _version_default = [ContentLine(name="VERSION", value="2.0")]
+       
+    2:     @option(required=True, default=_version_default)
+    2:     def parse_version(calendar, line):
+    3:         version = line
+               # TODO : should take care of minver/maxver
+    3:         if ";" in version.value:
+                   _, calendar.version = version.value.split(";")
+               else:
+    3:             calendar.version = version.value
+       
+    1:     def parse_calscale(calendar, line):
+    3:         calscale = line
+    3:         if calscale:
+                   calendar.scale = calscale.value.lower()
+                   calendar.scale_params = calscale.params
+               else:
+    3:             calendar.scale = "georgian"
+    3:             calendar.scale_params = {}
+       
+    1:     def parse_method(calendar, line):
+    3:         method = line
+    3:         if method:
+                   calendar.method = method.value
+                   calendar.method_params = method.params
+               else:
+    3:             calendar.method = None
+    3:             calendar.method_params = {}
+       
+    2:     @option(multiple=True)
+    2:     def parse_vtimezone(calendar, vtimezones):
+               """Receives a list of VTIMEZONE blocks.
+       
+               Parses them and adds them to calendar._timezones.
+               """
+    3:         for vtimezone in vtimezones:
+                   remove_x(vtimezone)  # Remove non standard lines from the block
+                   remove_sequence(
+                       vtimezone
+                   )  # Remove SEQUENCE lines because tzical does not understand them
+                   fake_file = StringIO()
+                   fake_file.write(str(vtimezone))  # Represent the block as a string
+                   fake_file.seek(0)
+                   timezones = tzical(fake_file)  # tzical does not like strings
+                   # timezones is a tzical object and could contain multiple timezones
+                   for key in timezones.keys():
+                       calendar._timezones[key] = timezones.get(key)
+       
+    2:     @option(multiple=True)
+    2:     def parse_vevent(calendar, lines):
+               # tz=calendar._timezones gives access to the event factory to the
+               # timezones list
+    3:         def event_factory(x):
+    3:             return Event._from_container(x, tz=calendar._timezones)
+       
+    3:         calendar.events = set(map(event_factory, lines))
+       
+    2:     @option(multiple=True)
+    2:     def parse_vtodo(calendar, lines):
+               # tz=calendar._timezones gives access to the event factory to the
+               # timezones list
+    3:         def todo_factory(x):
+                   return Todo._from_container(x, tz=calendar._timezones)
+       
+    3:         calendar.todos = set(map(todo_factory, lines))

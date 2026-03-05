@@ -1,0 +1,36 @@
+    1: """MongoDB connection helpers for the backend."""
+       
+    1: import os
+    1: from typing import Optional
+       
+    1: from dotenv import load_dotenv
+    1: from pymongo.mongo_client import MongoClient
+    1: from pymongo.server_api import ServerApi
+       
+       
+    1: def load_env_variables() -> Optional[str]:
+           """Load environment variables and return the configured MongoDB URI."""
+    1:     load_dotenv()
+    1:     return os.getenv("MONGODB_URI")
+       
+       
+    1: def create_mongo_client(uri: str) -> MongoClient:
+           """Create and validate a MongoDB client by issuing a ping command."""
+    3:     if not uri:
+    1:         raise ValueError("MONGODB_URI is not set. Check your .env file.")
+       
+    2:     client = MongoClient(uri, server_api=ServerApi("1"))
+    2:     try:
+    2:         client.admin.command("ping")
+    1:         print("Pinged your deployment. You successfully connected to MongoDB!")
+    1:         return client
+    1:     except Exception as exc:
+    1:         print(f"Failed to connect to MongoDB: {exc}")
+    1:         client.close()
+    1:         raise
+       
+       
+       # Backward-compatible aliases for existing imports.
+    1: loadEnvVariables = load_env_variables
+    1: createMongoClient = create_mongo_client
+       

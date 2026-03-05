@@ -1,0 +1,251 @@
+       """Cache lines from Python source files.
+       
+       This is intended to read lines from modules imported -- hence if a filename
+       is not found, it will look down the module search path for a file by
+       that name.
+       """
+       
+       __all__ = ["getline", "clearcache", "checkcache", "lazycache"]
+       
+       
+       # The cache. Maps filenames to either a thunk which will provide source code,
+       # or a tuple (size, mtime, lines, fullname) once loaded.
+       cache = {}
+       _interactive_cache = {}
+       
+       
+       def clearcache():
+           """Clear the cache entirely."""
+           cache.clear()
+       
+       
+       def getline(filename, lineno, module_globals=None):
+           """Get a line for a Python source file from the cache.
+           Update the cache if it doesn't contain an entry for this file already."""
+       
+ 2421:     lines = getlines(filename, module_globals)
+ 2421:     if 1 <= lineno <= len(lines):
+ 2201:         return lines[lineno - 1]
+  220:     return ''
+       
+       
+       def getlines(filename, module_globals=None):
+           """Get the lines for a Python source file from the cache.
+           Update the cache if it doesn't contain an entry for this file already."""
+       
+ 2421:     if filename in cache:
+ 2200:         entry = cache[filename]
+ 2200:         if len(entry) != 1:
+ 2190:             return cache[filename][2]
+       
+  231:     try:
+  231:         return updatecache(filename, module_globals)
+           except MemoryError:
+               clearcache()
+               return []
+       
+       
+       def _getline_from_code(filename, lineno):
+  220:     lines = _getlines_from_code(filename)
+  220:     if 1 <= lineno <= len(lines):
+               return lines[lineno - 1]
+  220:     return ''
+       
+       def _make_key(code):
+  220:     return (code.co_filename, code.co_qualname, code.co_firstlineno)
+       
+       def _getlines_from_code(code):
+  220:     code_id = _make_key(code)
+  220:     if code_id in _interactive_cache:
+               entry = _interactive_cache[code_id]
+               if len(entry) != 1:
+                   return _interactive_cache[code_id][2]
+  220:     return []
+       
+       
+       def _source_unavailable(filename):
+           """Return True if the source code is unavailable for such file name."""
+  231:     return (
+  231:         not filename
+  451:         or (filename.startswith('<')
+  220:             and filename.endswith('>')
+  220:             and not filename.startswith('<frozen '))
+           )
+       
+       
+       def checkcache(filename=None):
+           """Discard cache entries that are out of date.
+           (This is not checked upon each call!)"""
+       
+ 2288:     if filename is None:
+               # get keys atomically
+               filenames = cache.copy().keys()
+           else:
+ 2288:         filenames = [filename]
+       
+ 4576:     for filename in filenames:
+ 2288:         try:
+ 2288:             entry = cache[filename]
+  110:         except KeyError:
+  110:             continue
+       
+ 2178:         if len(entry) == 1:
+                   # lazy cache entry, leave it lazy.
+  120:             continue
+ 2058:         size, mtime, lines, fullname = entry
+ 2058:         if mtime is None:
+                   continue   # no-op for files loaded via a __loader__
+ 2058:         try:
+                   # This import can fail if the interpreter is shutting down
+ 2058:             import os
+               except ImportError:
+                   return
+ 2058:         try:
+ 2058:             stat = os.stat(fullname)
+               except (OSError, ValueError):
+                   cache.pop(filename, None)
+                   continue
+ 2058:         if size != stat.st_size or mtime != stat.st_mtime:
+                   cache.pop(filename, None)
+       
+       
+       def updatecache(filename, module_globals=None):
+           """Update a cache entry and return its list of lines.
+           If something's wrong, print a message, discard the cache entry,
+           and return an empty list."""
+       
+           # These imports are not at top level because linecache is in the critical
+           # path of the interpreter startup and importing os and sys take a lot of time
+           # and slows down the startup sequence.
+  231:     try:
+  231:         import os
+  231:         import sys
+  231:         import tokenize
+           except ImportError:
+               # These import can fail if the interpreter is shutting down
+               return []
+       
+  231:     if filename in cache:
+   10:         if len(cache[filename]) != 1:
+                   cache.pop(filename, None)
+  231:     if _source_unavailable(filename):
+               return []
+       
+  231:     if filename.startswith('<frozen '):
+               # This is a frozen module, so we need to use the filename
+               # from the module globals.
+  220:         if module_globals is None:
+  220:             return []
+       
+               fullname = module_globals.get('__file__')
+               if fullname is None:
+                   return []
+           else:
+   11:         fullname = filename
+   11:     try:
+   11:         stat = os.stat(fullname)
+           except OSError:
+               basename = filename
+       
+               # Realise a lazy loader based lookup if there is one
+               # otherwise try to lookup right now.
+               if lazycache(filename, module_globals):
+                   try:
+                       data = cache[filename][0]()
+                   except (ImportError, OSError):
+                       pass
+                   else:
+                       if data is None:
+                           # No luck, the PEP302 loader cannot find the source
+                           # for this module.
+                           return []
+                       cache[filename] = (
+                           len(data),
+                           None,
+                           [line + '\n' for line in data.splitlines()],
+                           fullname
+                       )
+                       return cache[filename][2]
+       
+               # Try looking through the module search path, which is only useful
+               # when handling a relative filename.
+               if os.path.isabs(filename):
+                   return []
+       
+               for dirname in sys.path:
+                   try:
+                       fullname = os.path.join(dirname, basename)
+                   except (TypeError, AttributeError):
+                       # Not sufficiently string-like to do anything useful with.
+                       continue
+                   try:
+                       stat = os.stat(fullname)
+                       break
+                   except (OSError, ValueError):
+                       pass
+               else:
+                   return []
+           except ValueError:  # may be raised by os.stat()
+               return []
+   11:     try:
+   22:         with tokenize.open(fullname) as fp:
+   11:             lines = fp.readlines()
+           except (OSError, UnicodeDecodeError, SyntaxError):
+               return []
+   11:     if not lines:
+               lines = ['\n']
+   11:     elif not lines[-1].endswith('\n'):
+               lines[-1] += '\n'
+   11:     size, mtime = stat.st_size, stat.st_mtime
+   11:     cache[filename] = size, mtime, lines, fullname
+   11:     return lines
+       
+       
+       def lazycache(filename, module_globals):
+           """Seed the cache for filename with module_globals.
+       
+           The module loader will be asked for the source only when getlines is
+           called, not immediately.
+       
+           If there is an entry in the cache already, it is not altered.
+       
+           :return: True if a lazy load is registered in the cache,
+               otherwise False. To register such a load a module loader with a
+               get_source method must be found, the filename must be a cacheable
+               filename, and the filename must not be already cached.
+           """
+ 4620:     if filename in cache:
+ 4389:         if len(cache[filename]) == 1:
+  120:             return True
+               else:
+ 4269:             return False
+  231:     if not filename or (filename.startswith('<') and filename.endswith('>')):
+  220:         return False
+           # Try for a __loader__, if available
+   11:     if module_globals and '__name__' in module_globals:
+   11:         spec = module_globals.get('__spec__')
+   11:         name = getattr(spec, 'name', None) or module_globals['__name__']
+   11:         loader = getattr(spec, 'loader', None)
+   11:         if loader is None:
+                   loader = module_globals.get('__loader__')
+   11:         get_source = getattr(loader, 'get_source', None)
+       
+   11:         if name and get_source:
+   11:             def get_lines(name=name, *args, **kwargs):
+                       return get_source(name, *args, **kwargs)
+   11:             cache[filename] = (get_lines,)
+   11:             return True
+           return False
+       
+       def _register_code(code, string, name):
+           entry = (len(string),
+                    None,
+                    [line + '\n' for line in string.splitlines()],
+                    name)
+           stack = [code]
+           while stack:
+               code = stack.pop()
+               for const in code.co_consts:
+                   if isinstance(const, type(code)):
+                       stack.append(const)
+               _interactive_cache[_make_key(code)] = entry

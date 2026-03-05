@@ -1,0 +1,33 @@
+    1: from ics.alarm.base import BaseAlarm
+    1: import copy
+    1: from typing import Union
+    1: from datetime import datetime, timedelta
+       
+    1: from ics.serializers.alarm_serializer import CustomAlarmSerializer
+    1: from ics.parsers.alarm_parser import CustomAlarmParser
+       
+       
+    2: class CustomAlarm(BaseAlarm):
+    1:     """
+           A calendar event VALARM with custom ACTION.
+           """
+       
+    2:     class Meta:
+    1:         name = "VALARM"
+    1:         parser = CustomAlarmParser
+    1:         serializer = CustomAlarmSerializer
+       
+    1:     def __init__(
+               self,
+               trigger: Union[timedelta, datetime] = None,
+               repeat: int = None,
+               duration: timedelta = None,
+               action: str = None,
+           ) -> None:
+               super().__init__(trigger, repeat, duration)
+       
+               self._action = action
+       
+    2:     @property
+    2:     def action(self):
+               return self._action

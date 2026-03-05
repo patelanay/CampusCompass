@@ -1,0 +1,60 @@
+    1: import unittest
+    1: from pathlib import Path
+    1: from tempfile import TemporaryDirectory
+    1: from textwrap import dedent
+       
+    1: from backend.uf_schedule import process_ics_file
+       
+       
+    1: def _write_ics(directory: Path, location: str, summary: str = "UF Event") -> Path:
+    3:     file_path = directory / "schedule.ics"
+    6:     file_path.write_text(
+    6:         dedent(
+    6:             f"""\
+                   BEGIN:VCALENDAR
+                   VERSION:2.0
+                   PRODID:-//CampusCompass//UnitTest//EN
+                   BEGIN:VEVENT
+    3:             SUMMARY:{summary}
+    3:             LOCATION:{location}
+                   DTSTART:20260305T130000Z
+                   DTEND:20260305T140000Z
+                   END:VEVENT
+                   END:VCALENDAR
+                   """
+               ),
+    3:         encoding="utf-8",
+           )
+    3:     return file_path
+       
+       
+    2: class UFScheduleTests(unittest.TestCase):
+    1:     def test_process_ics_file_maps_known_building_code(self):
+    2:         with TemporaryDirectory() as directory:
+    1:             file_path = _write_ics(Path(directory), "CSE 101")
+    1:             events = process_ics_file(str(file_path))
+       
+    1:         self.assertEqual(len(events), 1)
+    1:         self.assertEqual(events[0]["location_code"], "CSE")
+    1:         self.assertIn("campusmap.ufl.edu", events[0]["location_url"])
+       
+    1:     def test_process_ics_file_returns_default_for_unknown_code(self):
+    2:         with TemporaryDirectory() as directory:
+    1:             file_path = _write_ics(Path(directory), "ZZZ 101")
+    1:             events = process_ics_file(str(file_path))
+       
+    1:         self.assertEqual(len(events), 1)
+    1:         self.assertEqual(events[0]["location_code"], "ZZZ")
+    1:         self.assertEqual(events[0]["location_url"], "No URL found for this location code")
+       
+    1:     def test_process_ics_file_normalizes_lowercase_location_code(self):
+    2:         with TemporaryDirectory() as directory:
+    1:             file_path = _write_ics(Path(directory), "cse 201")
+    1:             events = process_ics_file(str(file_path))
+       
+    1:         self.assertEqual(events[0]["location_code"], "CSE")
+    1:         self.assertIn("index/0042", events[0]["location_url"])
+       
+       
+    1: if __name__ == "__main__":
+           unittest.main()

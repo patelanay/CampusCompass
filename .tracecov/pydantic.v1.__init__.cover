@@ -1,0 +1,142 @@
+       # flake8: noqa
+    1: import sys
+    1: import warnings
+       
+    1: from pydantic.v1 import dataclasses
+    1: from pydantic.v1.annotated_types import create_model_from_namedtuple, create_model_from_typeddict
+    1: from pydantic.v1.class_validators import root_validator, validator
+    1: from pydantic.v1.config import BaseConfig, ConfigDict, Extra
+    1: from pydantic.v1.decorator import validate_arguments
+    1: from pydantic.v1.env_settings import BaseSettings
+    1: from pydantic.v1.error_wrappers import ValidationError
+    1: from pydantic.v1.errors import *
+    1: from pydantic.v1.fields import Field, PrivateAttr, Required
+    1: from pydantic.v1.main import *
+    1: from pydantic.v1.networks import *
+    1: from pydantic.v1.parse import Protocol
+    1: from pydantic.v1.tools import *
+    1: from pydantic.v1.types import *
+    1: from pydantic.v1.version import VERSION, compiled
+       
+    1: __version__ = VERSION
+       
+       # WARNING __all__ from pydantic.errors is not included here, it will be removed as an export here in v2
+       # please use "from pydantic.v1.errors import ..." instead
+   95: __all__ = [
+           # annotated types utils
+    1:     'create_model_from_namedtuple',
+    1:     'create_model_from_typeddict',
+           # dataclasses
+    1:     'dataclasses',
+           # class_validators
+    1:     'root_validator',
+    1:     'validator',
+           # config
+    1:     'BaseConfig',
+    1:     'ConfigDict',
+    1:     'Extra',
+           # decorator
+    1:     'validate_arguments',
+           # env_settings
+    1:     'BaseSettings',
+           # error_wrappers
+    1:     'ValidationError',
+           # fields
+    1:     'Field',
+    1:     'Required',
+           # main
+    1:     'BaseModel',
+    1:     'create_model',
+    1:     'validate_model',
+           # network
+    1:     'AnyUrl',
+    1:     'AnyHttpUrl',
+    1:     'FileUrl',
+    1:     'HttpUrl',
+    1:     'stricturl',
+    1:     'EmailStr',
+    1:     'NameEmail',
+    1:     'IPvAnyAddress',
+    1:     'IPvAnyInterface',
+    1:     'IPvAnyNetwork',
+    1:     'PostgresDsn',
+    1:     'CockroachDsn',
+    1:     'AmqpDsn',
+    1:     'RedisDsn',
+    1:     'MongoDsn',
+    1:     'KafkaDsn',
+    1:     'validate_email',
+           # parse
+    1:     'Protocol',
+           # tools
+    1:     'parse_file_as',
+    1:     'parse_obj_as',
+    1:     'parse_raw_as',
+    1:     'schema_of',
+    1:     'schema_json_of',
+           # types
+    1:     'NoneStr',
+    1:     'NoneBytes',
+    1:     'StrBytes',
+    1:     'NoneStrBytes',
+    1:     'StrictStr',
+    1:     'ConstrainedBytes',
+    1:     'conbytes',
+    1:     'ConstrainedList',
+    1:     'conlist',
+    1:     'ConstrainedSet',
+    1:     'conset',
+    1:     'ConstrainedFrozenSet',
+    1:     'confrozenset',
+    1:     'ConstrainedStr',
+    1:     'constr',
+    1:     'PyObject',
+    1:     'ConstrainedInt',
+    1:     'conint',
+    1:     'PositiveInt',
+    1:     'NegativeInt',
+    1:     'NonNegativeInt',
+    1:     'NonPositiveInt',
+    1:     'ConstrainedFloat',
+    1:     'confloat',
+    1:     'PositiveFloat',
+    1:     'NegativeFloat',
+    1:     'NonNegativeFloat',
+    1:     'NonPositiveFloat',
+    1:     'FiniteFloat',
+    1:     'ConstrainedDecimal',
+    1:     'condecimal',
+    1:     'ConstrainedDate',
+    1:     'condate',
+    1:     'UUID1',
+    1:     'UUID3',
+    1:     'UUID4',
+    1:     'UUID5',
+    1:     'FilePath',
+    1:     'DirectoryPath',
+    1:     'Json',
+    1:     'JsonWrapper',
+    1:     'SecretField',
+    1:     'SecretStr',
+    1:     'SecretBytes',
+    1:     'StrictBool',
+    1:     'StrictBytes',
+    1:     'StrictInt',
+    1:     'StrictFloat',
+    1:     'PaymentCardNumber',
+    1:     'PrivateAttr',
+    1:     'ByteSize',
+    1:     'PastDate',
+    1:     'FutureDate',
+           # version
+    1:     'compiled',
+    1:     'VERSION',
+       ]
+       
+       
+    1: if sys.version_info >= (3, 14):
+    2:     warnings.warn(
+    1:         "Core Pydantic V1 functionality isn't compatible with Python 3.14 or greater.",
+    1:         UserWarning,
+    1:         stacklevel=2,
+           )

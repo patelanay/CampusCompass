@@ -1,0 +1,148 @@
+    1: import copy
+    1: import warnings
+    1: from typing import Dict, Iterable, Optional, Set, Union
+       
+    1: from six import text_type
+       
+    1: from .component import Component
+    1: from .event import Event
+    1: from ics.grammar.parse import Container, calendar_string_to_containers
+    1: from .timeline import Timeline
+    1: from .todo import Todo
+    1: from ics.parsers.icalendar_parser import CalendarParser
+    1: from ics.serializers.icalendar_serializer import CalendarSerializer
+       
+       
+    2: class Calendar(Component):
+    1:     """
+           Represents an unique rfc5545 iCalendar.
+       
+           Attributes:
+       
+               events: a set of Event contained in the Calendar
+               todos: a set of Todo contained in the Calendar
+               timeline: a Timeline instance linked to this Calendar
+       
+           """
+       
+    2:     class Meta:
+    1:         name = 'VCALENDAR'
+    1:         parser = CalendarParser
+    1:         serializer = CalendarSerializer
+       
+    1:     def __init__(
+               self,
+               imports: Union[str, Container] = None,
+               events: Iterable[Event] = None,
+               todos: Iterable[Todo] = None,
+               creator: str = None
+           ):
+               """Instantiates a new Calendar.
+       
+               Args:
+                   imports (**str**): data to be imported into the Calendar,
+                   events (**Set[Event]**): Events to be added to the calendar
+                   todos (Set[Todo]): Todos to be added to the calendar
+                   creator (string): uid of the creator program.
+       
+               If ``imports`` is specified, every other argument will be ignored.
+               """
+       
+    3:         self._timezones: Dict = {} # FIXME mypy
+    3:         self.events: Set[Event] = set()
+    3:         self.todos: Set[Todo] = set()
+    3:         self.extra = Container(name='VCALENDAR')
+    3:         self.scale = None
+    3:         self.method = None
+       
+    3:         self.timeline = Timeline(self)
+       
+    3:         if imports is not None:
+    3:             if isinstance(imports, Container):
+                       self._populate(imports)
+                   else:
+    3:                 containers = calendar_string_to_containers(imports)
+    3:                 if len(containers) != 1:
+                           raise NotImplementedError(
+                               'Multiple calendars in one file are not supported by this method. Use ics.Calendar.parse_multiple()')
+       
+    3:                 self._populate(containers[0])  # Use first calendar
+               else:
+                   if events is not None:
+                       self.events.update(set(events))
+                   if todos is not None:
+                       self.todos.update(set(todos))
+                   self._creator = creator
+       
+    2:     @classmethod
+    2:     def parse_multiple(cls, string):
+               """"
+               Parses an input string that may contain mutiple calendars
+               and retruns a list of :class:`ics.event.Calendar`
+               """
+               containers = calendar_string_to_containers(string)
+               return [cls(imports=c) for c in containers]
+       
+    1:     def __repr__(self) -> str:
+               return "<Calendar with {} event{} and {} todo{}>" \
+                   .format(len(self.events),
+                           "s" if len(self.events) > 1 else "",
+                           len(self.todos),
+                           "s" if len(self.todos) > 1 else "")
+       
+    1:     def __iter__(self) -> Iterable[str]:
+               """Returns:
+               iterable: an iterable version of seralize(), line per line
+               (with line-endings).
+       
+               Example:
+                   Can be used to write calendar to a file:
+       
+                   >>> c = Calendar(); c.events.add(Event(name="My cool event"))
+                   >>> open('my.ics', 'w').writelines(c)
+               """
+               warnings.warn(
+                   "Using Calendar as Iterable is deprecated and will be removed in version 0.8. "
+                   "Use the explicit calendar.serialize_iter() instead.", DeprecationWarning)
+               yield from self.serialize_iter()
+       
+    1:     def __eq__(self, other: object) -> bool:
+               if not isinstance(other, Calendar):
+                   raise NotImplementedError
+               for attr in ('extra', 'scale', 'method', 'creator'):
+                   if self.__getattribute__(attr) != other.__getattribute__(attr):
+                       return False
+       
+               return (self.events == other.events) and (self.todos == other.todos)
+       
+    1:     def __ne__(self, other: object) -> bool:
+               return not self.__eq__(other)
+       
+    2:     @property
+    2:     def creator(self) -> Optional[str]:
+               """Get or set the calendar's creator.
+       
+               |  Will return a string.
+               |  May be set to a string.
+               |  Creator is the PRODID iCalendar property.
+               |  It uniquely identifies the program that created the calendar.
+               """
+               return self._creator
+       
+    2:     @creator.setter
+    2:     def creator(self, value: Optional[str]) -> None:
+               if not isinstance(value, text_type):
+                   raise ValueError('Event.creator must be unicode data not {}'.format(type(value)))
+               self._creator = value
+       
+    1:     def clone(self):
+               """
+               Returns:
+                   Calendar: an exact deep copy of self
+               """
+               clone = copy.copy(self)
+               clone.extra = clone.extra.clone()
+               clone.events = copy.copy(self.events)
+               clone.todos = copy.copy(self.todos)
+               clone._timezones = copy.copy(self._timezones)
+               return clone

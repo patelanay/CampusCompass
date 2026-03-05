@@ -1,0 +1,31 @@
+    1: from collections.abc import Mapping
+    1: from typing import Any
+       
+    1: __REGISTRY: Mapping[str, Any] = vars()
+       
+       
+    2: class _Synthetic:
+    1:     def __reduce__(self):
+               return (
+                   synthesize(type(self).__name__, type(self).__bases__),
+                   (),
+                   vars(self),
+               )
+       
+       
+    1: def synthesize(name, bases):
+           typename = f'{__name__}.{name}'
+       
+           if not isinstance(bases, tuple):
+               bases = (bases,)
+       
+           if _Synthetic not in bases:
+               bases += (_Synthetic,)
+       
+           constructor = __REGISTRY.get(typename)
+           if not constructor:
+               constructor = type(name, bases, {})
+               typename = constructor.__name__
+               __REGISTRY[typename] = constructor
+       
+           return constructor

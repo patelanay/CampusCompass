@@ -1,0 +1,44 @@
+    1: from typing import Optional
+       
+    1: from ics.alarm.base import BaseAlarm
+       
+    1: from ics.grammar.parse import ContentLine
+    1: from typing import Union
+    1: from datetime import datetime, timedelta
+       
+    1: from ics.serializers.alarm_serializer import AudioAlarmSerializer
+    1: from ics.parsers.alarm_parser import AudioAlarmParser
+       
+       
+    2: class AudioAlarm(BaseAlarm):
+    1:     """
+           A calendar event VALARM with AUDIO option.
+           """
+       
+    2:     class Meta:
+    1:         name = "VALARM"
+    1:         parser = AudioAlarmParser
+    1:         serializer = AudioAlarmSerializer
+       
+    1:     def __init__(
+               self,
+               trigger: Union[timedelta, datetime] = None,
+               repeat: int = None,
+               duration: timedelta = None,
+           ):
+       
+               super().__init__(trigger, repeat, duration)
+               self._sound: Optional[ContentLine] = None
+       
+    2:     @property
+    2:     def action(self):
+               return "AUDIO"
+       
+    2:     @property
+    2:     def sound(self):
+               return self._sound
+       
+    2:     @sound.setter
+    2:     def sound(self, sound):
+               assert isinstance(sound, ContentLine)
+               self._sound = sound

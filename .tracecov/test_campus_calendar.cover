@@ -1,0 +1,158 @@
+    1: import unittest
+    1: from datetime import datetime, timezone
+       
+    1: from backend.campus_calendar import InMemoryCalendarManager
+       
+       
+    1: def _event_payload(**overrides):
+   14:     payload = {
+   14:         "title": "Algorithms Lecture",
+   14:         "start_time": "2026-03-05T09:00:00Z",
+   14:         "end_time": "2026-03-05T10:00:00Z",
+   14:         "event_type": "class",
+   14:         "location": "CSE E220",
+   14:         "description": "Daily lecture",
+   14:         "color": "#2E6FEA",
+   14:         "recurrence": "none",
+   14:         "reminders": [15, 60],
+           }
+   14:     payload.update(overrides)
+   14:     return payload
+       
+       
+    2: class InMemoryCalendarManagerTests(unittest.TestCase):
+    1:     def test_create_event_requires_all_required_fields(self):
+    1:         manager = InMemoryCalendarManager()
+    1:         result = manager.create_event("user-1", {"title": "Missing fields"})
+    1:         self.assertFalse(result["success"])
+    1:         self.assertIn("Missing field", result["error"])
+       
+    1:     def test_create_event_rejects_invalid_datetime(self):
+    1:         manager = InMemoryCalendarManager()
+    1:         result = manager.create_event("user-1", _event_payload(start_time="not-a-date"))
+    1:         self.assertFalse(result["success"])
+    1:         self.assertIn("Invalid datetime format", result["error"])
+       
+    1:     def test_create_event_rejects_reversed_time_range(self):
+    1:         manager = InMemoryCalendarManager()
+    2:         result = manager.create_event(
+    1:             "user-1",
+    1:             _event_payload(start_time="2026-03-05T11:00:00Z", end_time="2026-03-05T10:00:00Z"),
+               )
+    1:         self.assertFalse(result["success"])
+    1:         self.assertIn("Start time must be before end time", result["error"])
+       
+    1:     def test_create_event_success_and_get_event(self):
+    1:         manager = InMemoryCalendarManager()
+    1:         result = manager.create_event("user-1", _event_payload())
+    1:         self.assertTrue(result["success"])
+       
+    1:         event = manager.get_event(result["event_id"], "user-1")
+    1:         self.assertIsNotNone(event)
+    1:         self.assertEqual(event["title"], "Algorithms Lecture")
+    1:         self.assertEqual(event["event_type"], "class")
+       
+    1:     def test_create_event_detects_time_conflict(self):
+    1:         manager = InMemoryCalendarManager()
+    1:         first = manager.create_event("user-1", _event_payload())
+    1:         self.assertTrue(first["success"])
+       
+    2:         second = manager.create_event(
+    1:             "user-1",
+    1:             _event_payload(start_time="2026-03-05T09:30:00Z", end_time="2026-03-05T10:30:00Z"),
+               )
+    1:         self.assertFalse(second["success"])
+    1:         self.assertIn("conflicts", second["error"])
+       
+    1:     def test_get_user_events_honors_date_filter(self):
+    1:         manager = InMemoryCalendarManager()
+    2:         manager.create_event(
+    1:             "user-1",
+    1:             _event_payload(title="Morning", start_time="2026-03-05T09:00:00Z", end_time="2026-03-05T10:00:00Z"),
+               )
+    2:         manager.create_event(
+    1:             "user-1",
+    1:             _event_payload(title="Noon", start_time="2026-03-05T12:00:00Z", end_time="2026-03-05T13:00:00Z"),
+               )
+       
+    2:         filtered = manager.get_user_events(
+    1:             "user-1",
+    1:             start=datetime(2026, 3, 5, 10, 30, tzinfo=timezone.utc),
+    1:             end=datetime(2026, 3, 5, 13, 0, tzinfo=timezone.utc),
+               )
+       
+    1:         self.assertEqual(len(filtered), 1)
+    1:         self.assertEqual(filtered[0]["title"], "Noon")
+       
+    1:     def test_update_event_success_and_missing_event(self):
+    1:         manager = InMemoryCalendarManager()
+    1:         created = manager.create_event("user-1", _event_payload())
+    1:         event_id = created["event_id"]
+       
+    1:         success = manager.update_event(event_id, "user-1", {"title": "Updated"})
+    1:         missing = manager.update_event("missing", "user-1", {"title": "Updated"})
+       
+    1:         self.assertEqual(success, {"success": True})
+    1:         self.assertFalse(missing["success"])
+    1:         self.assertEqual(manager.get_event(event_id, "user-1")["title"], "Updated")
+       
+    1:     def test_delete_event_success_and_failure(self):
+    1:         manager = InMemoryCalendarManager()
+    1:         created = manager.create_event("user-1", _event_payload())
+    1:         event_id = created["event_id"]
+       
+    1:         self.assertEqual(manager.delete_event(event_id, "user-1"), {"success": True})
+    1:         missing = manager.delete_event(event_id, "user-1")
+    1:         self.assertFalse(missing["success"])
+       
+    1:     def test_find_free_slots_returns_gaps(self):
+    1:         manager = InMemoryCalendarManager()
+    1:         manager.create_event("user-1", _event_payload(start_time="2026-03-05T09:00:00Z", end_time="2026-03-05T10:00:00Z"))
+    1:         manager.create_event("user-1", _event_payload(start_time="2026-03-05T11:00:00Z", end_time="2026-03-05T12:00:00Z"))
+       
+    2:         free = manager.find_free_slots(
+    1:             "user-1",
+    1:             start=datetime(2026, 3, 5, 8, 0, tzinfo=timezone.utc),
+    1:             end=datetime(2026, 3, 5, 13, 0, tzinfo=timezone.utc),
+    1:             min_duration=30,
+               )
+       
+    1:         self.assertTrue(free["success"])
+    1:         self.assertEqual(len(free["free_slots"]), 3)
+    1:         self.assertTrue(free["free_slots"][0]["start"].startswith("2026-03-05T08:00:00"))
+       
+    1:     def test_get_statistics_counts_event_types(self):
+    1:         manager = InMemoryCalendarManager()
+    1:         manager.create_event("user-1", _event_payload(event_type="class"))
+    1:         manager.create_event("user-1", _event_payload(event_type="exam", start_time="2026-03-05T11:00:00Z", end_time="2026-03-05T12:00:00Z"))
+       
+    2:         stats = manager.get_statistics(
+    1:             "user-1",
+    1:             datetime(2026, 3, 5, 0, 0, tzinfo=timezone.utc),
+    1:             datetime(2026, 3, 6, 0, 0, tzinfo=timezone.utc),
+               )
+       
+    1:         self.assertTrue(stats["success"])
+    1:         self.assertEqual(stats["statistics"]["class"], 1)
+    1:         self.assertEqual(stats["statistics"]["exam"], 1)
+       
+    1:     def test_load_user_calendar_check_availability(self):
+    1:         manager = InMemoryCalendarManager()
+    1:         manager.create_event("user-1", _event_payload(start_time="2026-03-05T09:00:00Z", end_time="2026-03-05T10:00:00Z"))
+    1:         calendar = manager.load_user_calendar("user-1")
+       
+    2:         available = calendar.check_availability(
+    1:             datetime(2026, 3, 5, 10, 0, tzinfo=timezone.utc),
+    1:             datetime(2026, 3, 5, 11, 0, tzinfo=timezone.utc),
+               )
+    2:         conflict = calendar.check_availability(
+    1:             datetime(2026, 3, 5, 9, 30, tzinfo=timezone.utc),
+    1:             datetime(2026, 3, 5, 9, 45, tzinfo=timezone.utc),
+               )
+       
+    1:         self.assertTrue(available)
+    1:         self.assertFalse(conflict)
+       
+       
+    1: if __name__ == "__main__":
+           unittest.main()

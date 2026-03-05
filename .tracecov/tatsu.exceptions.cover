@@ -1,0 +1,138 @@
+    1: from __future__ import annotations
+       
+    1: import re
+       
+       
+    2: class ParseException(Exception):
+    1:     pass
+       
+       
+       # alias
+    1: TatSuException = ParseException
+       
+       
+    2: class OptionSucceeded(ParseException):
+    1:     pass
+       
+       
+    2: class GrammarError(ParseException):
+    1:     pass
+       
+       
+    2: class SemanticError(ParseException):
+    1:     pass
+       
+       
+    2: class CodegenError(ParseException):
+    1:     pass
+       
+       
+    2: class MissingSemanticFor(SemanticError):
+    1:     pass
+       
+       
+    2: class ParseError(ParseException):
+    1:     pass
+       
+       
+    2: class FailedSemantics(ParseError):
+    1:     pass
+       
+       
+    2: class FailedKeywordSemantics(FailedSemantics):
+    1:     pass
+       
+       
+    2: class NoParseInfo(ParseException):
+    1:     pass
+       
+       
+    2: class FailedParse(ParseError):
+    1:     def __init__(self, tokenizer, stack, item):
+  180:         stack = list(stack)  # NOTE: can't pass through multiprocessing if generator
+               # note: pass all arguments to super() to avoid pickling problems
+               #   https://stackoverflow.com/questions/27993567/
+  180:         super().__init__(tokenizer, stack, item)
+       
+  180:         self.tokenizer = tokenizer
+  180:         self.stack = stack
+  180:         self.pos = tokenizer.pos
+  180:         self.item = item
+       
+    2:     @property
+    2:     def message(self):
+               return self.item
+       
+    1:     def __str__(self):
+               info = self.tokenizer.line_info(self.pos)
+               template = '{}({}:{}) {} :\n{}\n{}^\n{}'
+               text = info.text.rstrip()
+               leading = re.sub(r'[^\t]', ' ', text)[: info.col]
+       
+               text = text.expandtabs()
+               leading = leading.expandtabs()
+               return template.format(
+                   info.filename,
+                   info.line + 1,
+                   info.col + 1,
+                   self.message.rstrip(),
+                   text,
+                   leading,
+                   '\n'.join(self.stack),
+               )
+       
+       
+    2: class FailedToken(FailedParse):
+    1:     def __init__(self, tokenizer, stack, token):
+   60:         super().__init__(tokenizer, stack, token)
+   60:         self.token = token
+       
+    2:     @property
+    2:     def message(self):
+               return 'expecting {}'.format(repr(self.token).lstrip('u'))
+       
+       
+    2: class FailedPattern(FailedParse):
+    1:     def __init__(self, tokenizer, stack, pattern):
+               super().__init__(tokenizer, stack, pattern)
+               self.pattern = pattern
+       
+    2:     @property
+    2:     def message(self):
+               return f'expecting /{self.pattern}/'
+       
+       
+    2: class FailedRef(FailedParse):
+    1:     def __init__(self, tokenizer, stack, name):
+               super().__init__(tokenizer, stack, name)
+               self.name = name
+       
+    2:     @property
+    2:     def message(self):
+               return f"could not resolve reference to rule '{self.name}'"
+       
+       
+    2: class FailedChoice(FailedParse):
+    2:     @property
+    2:     def message(self):
+               return 'no viable option'
+       
+       
+    2: class FailedLookahead(FailedParse):
+    2:     @property
+    2:     def message(self):
+               return 'failed lookahead'
+       
+       
+    2: class FailedLeftRecursion(FailedParse):
+    2:     @property
+    2:     def message(self):
+               return 'infinite left recursion'
+       
+       
+    2: class FailedExpectingEndOfText(FailedParse):
+    1:     pass
+       
+       
+    2: class FailedKeyword(FailedParse):
+    1:     pass
