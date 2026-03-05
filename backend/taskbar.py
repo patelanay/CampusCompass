@@ -21,9 +21,9 @@ Usage:
 """
 
 from datetime import datetime, timezone
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 from dataclasses import dataclass, field
-import uuid
+from uuid import uuid4
 
 # ============================================================================
 # Data Classes
@@ -44,14 +44,14 @@ class Task:
         created_at: When the task was created
     """
     title: str
-    id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    id: str = field(default_factory=lambda: str(uuid4()))
     description: Optional[str] = None
     priority: str = "medium"  # Default priority
     due_date: Optional[datetime] = None
     completed: bool = False
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> Dict[str, Any]:
         """Convert task to dictionary for JSON/DB storage."""
         return {
             'id': self.id,
@@ -88,7 +88,7 @@ class Taskbar:
         self.tasks[task.id] = task
         return task.id
 
-    def edit_task(self, task_id: str, updated_data: Dict) -> bool:
+    def edit_task(self, task_id: str, updated_data: Dict[str, Any]) -> bool:
         """Edit an existing task."""
         task = self.tasks.get(task_id)
         if not task:

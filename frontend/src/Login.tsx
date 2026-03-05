@@ -1,37 +1,48 @@
-import "./css/login.css";
 import { useState } from "react";
 import { GoogleLogin, type CredentialResponse } from "@react-oauth/google";
 
+import "./css/login.css";
+
+interface AuthenticatedUser {
+  user_email: string;
+  user_name: string;
+  user_id: string;
+}
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+const AUTH_ENDPOINT = `${API_BASE_URL}/api/auth/google`;
+
 export default function Login() {
   const [error, setError] = useState<string | null>(null);
+  const [authenticatedUser, setAuthenticatedUser] = useState<AuthenticatedUser | null>(null);
+
+  const saveUserAndReload = (user: AuthenticatedUser) => {
+    localStorage.setItem("user", JSON.stringify(user));
+    window.location.href = "/";
+  };
 
   const handleGoogleSuccess = async (credentialResponse: CredentialResponse) => {
     try {
-      // Send the Google token to your backend for verification
-      const resp = await fetch("http://localhost:8000/api/auth/google", {
+      if (!credentialResponse.credential) {
+        throw new Error("Google credential was not returned.");
+      }
+
+      const response = await fetch(AUTH_ENDPOINT, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token: credentialResponse.credential }),
       });
 
-      if (!resp.ok) {
-        const data = await resp.json().catch(() => ({}));
-        throw new Error(data?.message || "Authentication failed");
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data?.detail || "Authentication failed");
       }
 
-  const data = await resp.json();
-  // Store user info returned by backend so App/Dashboard can read it
-  // Expected shape: { user_email, user_name, user_id }
-  localStorage.setItem("user", JSON.stringify(data));
-      
-      // Redirect to the main app
-      window.location.href = "/";
-    } catch (err: unknown) {
-      const message =
-        err && typeof err === "object" && "message" in err
-          ? String((err as { message?: unknown }).message)
-          : "Authentication failed";
-      setError(message);
+      const user = (await response.json()) as AuthenticatedUser;
+      setAuthenticatedUser(user);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Authentication failed.");
     }
   };
 
@@ -40,46 +51,64 @@ export default function Login() {
   };
 
   return (
-    <div className="split-wrapper">
-      <div className="panel left-panel">
-        <div className="left-content">
-          <h1 className="left-title">Campus Compass</h1>
-          <p className="left-sub">UF's own Campus Companion!</p>
-          <p className="left-copy">
-            Campus Compass is your go-to app for navigating the University of
-            Florida campus with ease. Whether you're a new student finding your
-            way around or a returning student looking for the best spots, Campus
-            Compass has got you covered.
+    <div className="login-page">
+      <div className="login-bg login-bg--blue" />
+      <div className="login-bg login-bg--orange" />
+
+      <section className="login-shell">
+        <div className="login-story glass-card">
+          <p className="login-kicker">University of Florida</p>
+          <h1>Campus Compass</h1>
+          <p>
+            Plan classes, keep track of assignments, and navigate UF with a cleaner daily workflow.
           </p>
+          <ul>
+            <li>Smart calendar with recurring events</li>
+            <li>Task tracking with priorities</li>
+            <li>Instant campus map access by building code</li>
+          </ul>
         </div>
-        <div className="decor-circle decor-1"></div>
-        <div className="decor-circle decor-2"></div>
-      </div>
 
-      <div className="panel right-panel">
-        <div className="card">
-          <h2 className="card-title">Sign in</h2>
-          <p className="card-sub">
-            Sign in using your UFL email to access your Campus Compass account
-          </p>
+        <div className="login-card glass-card">
+          <h2>Sign In</h2>
+          <p>Use your UFL Google account to access Campus Compass.</p>
 
-          <form className="auth-form">
-            {error && <div className="error">{error}</div>}
-            
-            <GoogleLogin
-              onSuccess={handleGoogleSuccess}
-              onError={handleGoogleError}
-              useOneTap
-              text="signin_with"
-              theme="filled_blue"
-            />
-          </form>
+          {error && <div className="login-error">{error}</div>}
 
-          <div className="alt-note">
-            Sign in with your Google account to access Campus Compass
-          </div>
+          {!authenticatedUser ? (
+            <div className="login-actions">
+              <GoogleLogin onSuccess={handleGoogleSuccess} onError={handleGoogleError} useOneTap text="signin_with" />
+              <button type="button" className="login-btn login-btn--muted" disabled>
+                Continue as Guest
+              </button>
+              <small>Sign in first to unlock guest demo mode.</small>
+            </div>
+          ) : (
+            <div className="login-actions">
+              <div className="login-success">
+                Signed in as {authenticatedUser.user_name} ({authenticatedUser.user_email})
+              </div>
+              <button type="button" className="login-btn login-btn--primary" onClick={() => saveUserAndReload(authenticatedUser)}>
+                Continue as {authenticatedUser.user_name}
+              </button>
+              <button
+                type="button"
+                className="login-btn login-btn--muted"
+                onClick={() =>
+                  saveUserAndReload({
+                    user_email: authenticatedUser.user_email,
+                    user_name: authenticatedUser.user_name,
+                    user_id: "guest",
+                  })
+                }
+              >
+                Continue as Guest
+              </button>
+              <small>Guest mode is read-only and uses sample schedule data.</small>
+            </div>
+          )}
         </div>
-      </div>
+      </section>
     </div>
   );
 }

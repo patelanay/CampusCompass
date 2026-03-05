@@ -1,1 +1,1 @@
-#empty
+"""CampusCompass backend package."""

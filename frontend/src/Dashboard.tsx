@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import "./css/app.css";
+
 import Calendar from "./Calendar";
 import Taskbar from "./Taskbar";
+import "./css/app.css";
 
 interface UserData {
   user_name: string;
@@ -9,15 +10,20 @@ interface UserData {
   user_id: string;
 }
 
+function readStoredUser(): UserData | null {
+  try {
+    const rawUser = localStorage.getItem("user");
+    return rawUser ? (JSON.parse(rawUser) as UserData) : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function Dashboard() {
   const [user, setUser] = useState<UserData | null>(null);
 
   useEffect(() => {
-    // Get user data from localStorage
-    const userData = localStorage.getItem("user");
-    if (userData) {
-      setUser(JSON.parse(userData));
-    }
+    setUser(readStoredUser());
   }, []);
 
   const handleLogout = () => {
@@ -25,44 +31,41 @@ export default function Dashboard() {
     window.location.href = "/";
   };
 
+  const handleOpenCampusMap = () => {
+    window.open("https://campusmap.ufl.edu/", "_blank", "noopener,noreferrer");
+  };
+
   if (!user) {
-    return (
-      <div style={{ padding: "2rem", textAlign: "center" }}>
-        <p>Loading...</p>
-      </div>
-    );
+    return <div className="workspace-loader">Loading dashboard...</div>;
   }
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50">
-      {/* Header with user info and logout */}
-      <header className="bg-white border-b border-gray-200 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-2xl font-bold text-[#003087]">
-                Campus Compass
-              </h1>
-              <p className="text-sm text-gray-600 mt-1">
-                Welcome, {user.user_name} • {user.user_email}
-              </p>
-            </div>
-            <button
-              onClick={handleLogout}
-              className="px-4 py-2 bg-[#FA4616] text-white rounded-md hover:bg-[#d93a0f] transition-colors"
-            >
-              Logout
-            </button>
-          </div>
+    <div className="app-shell">
+      <div className="app-backdrop app-backdrop--blue" />
+      <div className="app-backdrop app-backdrop--orange" />
+
+      <header className="app-header glass-card">
+        <div className="app-brand">
+          <h1>Campus Compass</h1>
+          <p>
+            {user.user_name} · {user.user_email}
+          </p>
+        </div>
+        <div className="app-actions">
+          <button className="app-action-btn app-action-btn--secondary" onClick={handleOpenCampusMap}>
+            Campus Map
+          </button>
+          <button className="app-action-btn" onClick={handleLogout}>
+            Log Out
+          </button>
         </div>
       </header>
 
-      {/* Main content - Calendar and Taskbar */}
-      <main className="flex-1 overflow-hidden flex">
-        <div className="flex-1 overflow-hidden">
+      <main className="workspace">
+        <div className="workspace-calendar">
           <Calendar userId={user.user_id} />
         </div>
-        <div className="w-80 overflow-hidden border-l border-gray-200">
+        <div className="workspace-taskbar">
           <Taskbar userId={user.user_id} />
         </div>
       </main>
