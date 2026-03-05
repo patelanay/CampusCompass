@@ -25,6 +25,10 @@ export default function Dashboard() {
     window.location.href = "/";
   };
 
+  const handleOpenCampusMap = () => {
+    window.open("https://campusmap.ufl.edu/", "_blank");
+  };
+
   if (!user) {
     return (
       <div style={{ padding: "2rem", textAlign: "center" }}>
@@ -47,12 +51,21 @@ export default function Dashboard() {
                 Welcome, {user.user_name} • {user.user_email}
               </p>
             </div>
-            <button
-              onClick={handleLogout}
-              className="px-4 py-2 bg-[#FA4616] text-white rounded-md hover:bg-[#d93a0f] transition-colors"
-            >
-              Logout
-            </button>
+            <div className="flex gap-3">
+              <button
+                onClick={handleOpenCampusMap}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                title="Open UF Campus Map"
+              >
+                🗺️ Campus Map
+              </button>
+              <button
+                onClick={handleLogout}
+                className="px-4 py-2 bg-[#FA4616] text-white rounded-md hover:bg-[#d93a0f] transition-colors"
+              >
+                Logout
+              </button>
+            </div>
           </div>
         </div>
       </header>

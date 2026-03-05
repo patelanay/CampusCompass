@@ -1,8 +1,9 @@
 import uvicorn
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional, Dict
+from datetime import datetime, timezone
 import os
 from dotenv import load_dotenv
 from google.oauth2 import id_token
@@ -10,6 +11,8 @@ from google.auth.transport import requests
 from calendar_manager import CalendarManager
 from db_helpers import createMongoClient, loadEnvVariables
 from campus_calendar import InMemoryCalendarManager
+from taskbar import Taskbar
+from uf_schedule import building_code_to_url
 from pymongo import MongoClient
 
 # Load environment variables
@@ -28,6 +31,31 @@ class AuthResponse(BaseModel):
     user_email: str
     user_name: str
     user_id: str
+
+# Taskbar/Todo Models
+class TaskCreate(BaseModel):
+    user_id: str
+    title: str
+    description: Optional[str] = None
+    priority: str = "medium"  # low, medium, high
+    due_date: Optional[str] = None  # ISO format
+
+class TaskUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    priority: Optional[str] = None
+    due_date: Optional[str] = None
+    completed: Optional[bool] = None
+
+class TaskResponse(BaseModel):
+    id: str
+    user_id: str
+    title: str
+    description: Optional[str]
+    priority: str
+    due_date: Optional[str]
+    completed: bool
+    created_at: str
 
 # Calendar Event Models
 class EventCreate(BaseModel):
@@ -78,6 +106,9 @@ GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 # Initialize MongoDB and CalendarManager
 mongo_client: Optional[MongoClient] = None
 calendar_manager: Optional[CalendarManager] = None
+
+# In-memory taskbars for each user (could be backed by MongoDB later)
+user_taskbars: Dict[str, Taskbar] = {}
 
 @app.on_event("startup")
 async def startup_event():
@@ -371,6 +402,176 @@ async def get_statistics(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error getting statistics: {str(e)}")
+
+# ============================================================================
+# Taskbar/Todo Endpoints
+# ============================================================================
+
+@app.post("/api/tasks")
+async def create_task(task_data: TaskCreate):
+    """Create a new task."""
+    try:
+        user_id = task_data.user_id
+        if user_id not in user_taskbars:
+            user_taskbars[user_id] = Taskbar()
+
+        taskbar = user_taskbars[user_id]
+        due_date = None
+        if task_data.due_date:
+            due_date = datetime.fromisoformat(task_data.due_date.replace('Z', '+00:00'))
+
+        task_id = taskbar.add_task(
+            title=task_data.title,
+            description=task_data.description,
+            priority=task_data.priority,
+            due_date=due_date
+        )
+
+        task = taskbar.tasks[task_id]
+        return TaskResponse(
+            id=task.id,
+            user_id=user_id,
+            title=task.title,
+            description=task.description,
+            priority=task.priority,
+            due_date=task.due_date.isoformat() if task.due_date else None,
+            completed=task.completed,
+            created_at=task.created_at.isoformat()
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error creating task: {str(e)}")
+
+@app.get("/api/tasks")
+async def get_tasks(user_id: str = Query(..., description="User ID")):
+    """Get all tasks for a user."""
+    try:
+        if user_id not in user_taskbars:
+            user_taskbars[user_id] = Taskbar()
+
+        taskbar = user_taskbars[user_id]
+        tasks = taskbar.list_tasks()
+
+        result = []
+        for task_dict in tasks:
+            result.append(TaskResponse(
+                id=task_dict['id'],
+                user_id=user_id,
+                title=task_dict['title'],
+                description=task_dict['description'],
+                priority=task_dict['priority'],
+                due_date=task_dict['due_date'],
+                completed=task_dict['completed'],
+                created_at=task_dict['created_at']
+            ))
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching tasks: {str(e)}")
+
+@app.put("/api/tasks/{task_id}")
+async def update_task(task_id: str, user_id: str = Query(..., description="User ID"), task_data: TaskUpdate = None):
+    """Update a task."""
+    try:
+        if user_id not in user_taskbars:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        taskbar = user_taskbars[user_id]
+        update_dict = {}
+
+        if task_data and task_data.title is not None:
+            update_dict['title'] = task_data.title
+        if task_data and task_data.description is not None:
+            update_dict['description'] = task_data.description
+        if task_data and task_data.priority is not None:
+            update_dict['priority'] = task_data.priority
+        if task_data and task_data.due_date is not None:
+            update_dict['due_date'] = datetime.fromisoformat(task_data.due_date.replace('Z', '+00:00'))
+        if task_data and task_data.completed is not None:
+            update_dict['completed'] = task_data.completed
+
+        success = taskbar.edit_task(task_id, update_dict)
+        if not success:
+            raise HTTPException(status_code=404, detail="Task not found")
+
+        task = taskbar.tasks[task_id]
+        return TaskResponse(
+            id=task.id,
+            user_id=user_id,
+            title=task.title,
+            description=task.description,
+            priority=task.priority,
+            due_date=task.due_date.isoformat() if task.due_date else None,
+            completed=task.completed,
+            created_at=task.created_at.isoformat()
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error updating task: {str(e)}")
+
+@app.delete("/api/tasks/{task_id}")
+async def delete_task(task_id: str, user_id: str = Query(..., description="User ID")):
+    """Delete a task."""
+    try:
+        if user_id not in user_taskbars:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        taskbar = user_taskbars[user_id]
+        success = taskbar.remove_task(task_id)
+
+        if not success:
+            raise HTTPException(status_code=404, detail="Task not found")
+
+        return {"success": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error deleting task: {str(e)}")
+
+@app.post("/api/tasks/{task_id}/complete")
+async def complete_task(task_id: str, user_id: str = Query(..., description="User ID")):
+    """Mark a task as completed."""
+    try:
+        if user_id not in user_taskbars:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        taskbar = user_taskbars[user_id]
+        success = taskbar.mark_task_completed(task_id)
+
+        if not success:
+            raise HTTPException(status_code=404, detail="Task not found")
+
+        task = taskbar.tasks[task_id]
+        return TaskResponse(
+            id=task.id,
+            user_id=user_id,
+            title=task.title,
+            description=task.description,
+            priority=task.priority,
+            due_date=task.due_date.isoformat() if task.due_date else None,
+            completed=task.completed,
+            created_at=task.created_at.isoformat()
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error completing task: {str(e)}")
+
+# ============================================================================
+# Campus Map Endpoint
+# ============================================================================
+
+@app.get("/api/campus-map")
+async def get_campus_map():
+    """Get the main UF campus map URL."""
+    return {"map_url": "https://campusmap.ufl.edu/"}
+
+@app.get("/api/campus-map/building/{building_code}")
+async def get_building_map(building_code: str):
+    """Get the campus map URL for a specific building code."""
+    building_code_upper = building_code.upper()
+    if building_code_upper not in building_code_to_url:
+        raise HTTPException(status_code=404, detail=f"Building code '{building_code}' not found")
+    return {"map_url": building_code_to_url[building_code_upper]}
 
 if __name__ == "__main__":
     uvicorn.run(app, host = "0.0.0.0", port = 8000)
